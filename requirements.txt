@@ -1,0 +1,17 @@
+# Trading System Dependencies
+numpy>=1.21.0
+pandas>=1.3.0
+asyncio
+websockets>=10.0
+ujson>=5.0.0
+ccxt>=2.0.0
+redis>=4.0.0
+requests>=2.25.0
+psutil>=5.8.0
+uvloop>=0.16.0
+PyQt6>=6.0.0
+aiohttp>=3.8.0
+websocket-client>=1.2.0
+posix_ipc>=1.1.0
+# Optional: Cython for performance optimization (install separately if needed)
+# Cython>=3.0.0

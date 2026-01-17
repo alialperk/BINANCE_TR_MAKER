@@ -1,0 +1,10 @@
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/websocket_shm.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/binance_websocket_shm.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/websocket_shm_client.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/binance_websocket_shm_client.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/edit_cache.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/rebuild_cache.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/list_install_components.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/install.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/install/local.dir
+/home/ubuntu/Documents/BTCTURK_MAKER/build_binance/CMakeFiles/install/strip.dir

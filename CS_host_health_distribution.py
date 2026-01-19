@@ -50,19 +50,27 @@ async def health_check_cs_host(host_str: str, timeout: float = 5.0, script_id: i
         return False
 
 
-def get_all_available_hosts(cs_instruments_map: Dict) -> List[str]:
+def get_all_available_hosts(cs_instruments_map: Dict, instrument_ids: List[int] = None) -> List[str]:
     """
     Get all unique hosts from CS_INSTRUMENTS_MAP.
+    If instrument_ids is provided, only get hosts for those specific instruments.
     
     Args:
         cs_instruments_map: Dictionary mapping instrument_id to instrument info
+        instrument_ids: Optional list of instrument IDs to filter by (only get hosts for these instruments)
         
     Returns:
         Sorted list of unique host strings in format "host:port"
     """
     all_hosts = set()
     if cs_instruments_map:
-        for instrument_id, info in cs_instruments_map.items():
+        # If instrument_ids provided, only check those instruments
+        instruments_to_check = instrument_ids if instrument_ids else cs_instruments_map.keys()
+        
+        for instrument_id in instruments_to_check:
+            if instrument_id not in cs_instruments_map:
+                continue
+            info = cs_instruments_map[instrument_id]
             hosts = info.get("hosts", [])
             for host_obj in hosts:
                 if isinstance(host_obj, dict):
@@ -144,9 +152,16 @@ def distribute_instruments_to_hosts(
         host_instruments = instrument_ids[start_idx:end_idx]
         
         distribution[host] = host_instruments
-        logging.info(f"{log_prefix}Host {host} will subscribe to {len(host_instruments)} instruments")
+        logging.info(f"{log_prefix}Host {host} will subscribe to {len(host_instruments)} instruments: {host_instruments[:5]}{'...' if len(host_instruments) > 5 else ''}")
         
         start_idx = end_idx
+    
+    # Verify distribution: total should equal input
+    total_distributed = sum(len(instruments) for instruments in distribution.values())
+    if total_distributed != len(instrument_ids):
+        logging.error(f"{log_prefix}Distribution error: {total_distributed} instruments distributed but {len(instrument_ids)} expected!")
+    else:
+        logging.info(f"{log_prefix}Distribution verified: {total_distributed} instruments distributed across {len(healthy_hosts)} hosts")
     
     return distribution
 
@@ -170,8 +185,8 @@ async def get_healthy_hosts_with_distribution(
     Returns:
         Dictionary mapping healthy host_str to list of instrument_ids assigned to that host
     """
-    # Get all available hosts
-    all_hosts = get_all_available_hosts(cs_instruments_map)
+    # Get all available hosts (only for the instruments we're distributing)
+    all_hosts = get_all_available_hosts(cs_instruments_map, instrument_ids)
     
     log_prefix = f"Script {script_id}: " if script_id else ""
     if not all_hosts:
@@ -193,4 +208,3 @@ async def get_healthy_hosts_with_distribution(
     distribution = distribute_instruments_to_hosts(instrument_ids, healthy_hosts, script_id)
     
     return distribution
-

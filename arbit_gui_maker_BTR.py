@@ -13,7 +13,7 @@ from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict
 from datetime import datetime
-import arbit_config_maker_HFT as arbit_config_maker
+import arbit_config_maker_BTR as arbit_config_maker
 import ccxt
 import numpy as np
 
@@ -312,6 +312,7 @@ class ArbitrageMonitor(QMainWindow):
             process_names = [
                 'binance_tr_ws_client',
                 'binance_ws_client',
+                'binance_cs_ws_client',  # Binance CS WebSocket client
                 'binance_websocket_shm_client',  # Legacy shared memory client if exists
                 'websocket_shm_client'  # Legacy BTCTURK client if exists
             ]
@@ -361,6 +362,7 @@ class ArbitrageMonitor(QMainWindow):
                 process_names = [
                     'binance_tr_ws_client',
                     'binance_ws_client',
+                    'binance_cs_ws_client',  # Binance CS WebSocket client
                     'binance_websocket_shm_client',  # Legacy shared memory client if exists
                     'websocket_shm_client'  # Legacy BTCTURK client if exists
                 ]
@@ -455,7 +457,7 @@ class ArbitrageMonitor(QMainWindow):
         # Store C++ WebSocket process references for cleanup
         self.cpp_binance_process = None
         self.cpp_binance_tr_process = None
-        
+          
         # Store arbitrage script process references for cleanup
         self.arbitrage_processes = []
         
@@ -961,7 +963,12 @@ class ArbitrageMonitor(QMainWindow):
             # Start both WebSocket clients in separate terminals
             self.start_binance_tr_cpp_websocket()
             self.start_binance_cpp_websocket()
-              
+        
+            
+            # Start arbitrage core scripts
+            logging.info("Starting arbitrage core scripts...")
+            self.start_arbitrage_scripts()
+            
         elif arbitrage_state == b'running':
             self.redis.set('maker_arbitrage_state', 'stopping')
             self.system_control_btn.setText("Stopping...")
@@ -1059,11 +1066,11 @@ class ArbitrageMonitor(QMainWindow):
         try:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             
-            # Generate binance_websocket_instruments.json from CS_common_instruments.json
+            # Generate binance_websocket_instruments.json from common_symbol_info.json
             generate_script = os.path.join(current_dir, "create_binance_instruments_from_common.py")
             if os.path.exists(generate_script):
                 try:
-                    logging.info("Generating binance_websocket_instruments.json from CS_common_instruments.json...")
+                    logging.info("Generating binance_websocket_instruments.json from common_symbol_info.json...")
                     result = subprocess.run(
                         [sys.executable, generate_script],
                         cwd=current_dir,
@@ -1121,26 +1128,26 @@ class ArbitrageMonitor(QMainWindow):
                     loop.close()
                     
                     if not healthy_hosts:
-                        logging.error("GUI: No healthy CS hosts found! Cannot start Binance C++ clients.")
-                        logging.warning("Binance CS client will not start")
-                        return
-                    
-                    # Use first 2 healthy hosts (or all if less than 2)
-                    hosts_to_use = healthy_hosts[:2]
-                    logging.info(f"GUI: Selected {len(hosts_to_use)} healthy host(s) for redundancy: {hosts_to_use}")
-                    
-                    # Update instruments file with healthy hosts
-                    instruments_file = os.path.join(current_dir, "binance_websocket_instruments.json")
-                    if os.path.exists(instruments_file):
-                        try:
-                            with open(instruments_file, 'r') as f:
-                                instruments_data = json.load(f)
-                            instruments_data["hosts"] = hosts_to_use
-                            with open(instruments_file, 'w') as f:
-                                json.dump(instruments_data, f, indent=2)
-                            logging.info(f"GUI: Updated {instruments_file} with healthy hosts: {hosts_to_use}")
-                        except Exception as e:
-                            logging.warning(f"GUI: Could not update instruments file with healthy hosts: {e}")
+                        logging.warning("GUI: No healthy CS hosts found from health checks, using default hosts as fallback")
+                        # Fall through to default hosts logic below
+                        hosts_to_use = []
+                    else:
+                        # Use first 2 healthy hosts (or all if less than 2)
+                        hosts_to_use = healthy_hosts[:2]
+                        logging.info(f"GUI: Selected {len(hosts_to_use)} healthy host(s) for redundancy: {hosts_to_use}")
+                        
+                        # Update instruments file with healthy hosts
+                        instruments_file = os.path.join(current_dir, "binance_websocket_instruments.json")
+                        if os.path.exists(instruments_file):
+                            try:
+                                with open(instruments_file, 'r') as f:
+                                    instruments_data = json.load(f)
+                                instruments_data["hosts"] = hosts_to_use
+                                with open(instruments_file, 'w') as f:
+                                    json.dump(instruments_data, f, indent=2)
+                                logging.info(f"GUI: Updated {instruments_file} with healthy hosts: {hosts_to_use}")
+                            except Exception as e:
+                                logging.warning(f"GUI: Could not update instruments file with healthy hosts: {e}")
                     
                     # Path to the Binance startup script
                     binance_cpp_startup_script = os.path.join(current_dir, "start_binance_websocket.sh")
@@ -1159,7 +1166,11 @@ class ArbitrageMonitor(QMainWindow):
                             f'exec bash"'
                         )
                         
-                        logging.info(f"Starting Binance CS C++ WebSocket clients (redundancy mode): {cmd_command}")
+                        if hosts_to_use:
+                            logging.info(f"Starting Binance CS C++ WebSocket clients (redundancy mode): {cmd_command}")
+                            logging.info(f"  - {len(hosts_to_use)} client(s) will connect to: {hosts_to_use}")
+                        else:
+                            logging.info(f"Starting Binance CS C++ WebSocket clients with default hosts: {cmd_command}")
                         
                         # Execute command in a new terminal window
                         self.cpp_binance_process = subprocess.Popen(
@@ -1168,7 +1179,6 @@ class ArbitrageMonitor(QMainWindow):
                         )
                         
                         logging.info(f"Binance CS C++ WebSocket clients started in new terminal window")
-                        logging.info(f"  - {len(hosts_to_use)} client(s) will connect to: {hosts_to_use}")
                         logging.info(f"  - Both clients will subscribe to ALL symbols")
                         logging.info(f"  - Both clients will write to the same shared memory for redundancy")
                         logging.info("Waiting 3 seconds for Binance CS C++ clients to initialize...")
@@ -1249,7 +1259,24 @@ class ArbitrageMonitor(QMainWindow):
                 logging.warning(f"GUI: Error checking healthy CS hosts: {e}")
                 import traceback
                 logging.warning(traceback.format_exc())
-                logging.warning("Binance CS client will not start")
+                logging.warning("GUI: Starting Binance CS client with default hosts as fallback...")
+                
+                # Fallback: Start Binance CS client with default hosts if health checks fail
+                binance_cpp_startup_script = os.path.join(current_dir, "start_binance_websocket.sh")
+                if os.path.exists(binance_cpp_startup_script):
+                    os.chmod(binance_cpp_startup_script, 0o755)
+                    cmd_command = (
+                        f'gnome-terminal --title="Binance CS C++ WebSocket Clients (Fallback)" -- bash -c "'
+                        f'cd "{current_dir}" && '
+                        f'"{binance_cpp_startup_script}"; '
+                        f'exec bash"'
+                    )
+                    self.cpp_binance_process = subprocess.Popen(cmd_command, shell=True)
+                    logging.info("Binance CS C++ WebSocket clients started in new terminal window (fallback mode)")
+                    time.sleep(3)
+                else:
+                    logging.error(f"Fallback: Binance CS C++ startup script not found: {binance_cpp_startup_script}")
+                    logging.warning("Fallback: Binance CS client will not start")
         except Exception as e:
             logging.error(f"Error starting Binance CS C++ WebSocket client: {e}")
             import traceback
@@ -1500,7 +1527,7 @@ class ArbitrageMonitor(QMainWindow):
                 except Exception as e:
                     logging.error(f"Error stopping Binance TR C++ process: {e}")
             
-            # Note: Python scripts handle their own shutdown via Redis stop command
+            # Note: Other Python scripts handle their own shutdown via Redis stop command
             # No need to kill them - they will exit gracefully
             
             # Kill all C++ websocket processes - graceful shutdown first, then force if needed
@@ -1513,7 +1540,8 @@ class ArbitrageMonitor(QMainWindow):
                 # Terminal windows will remain open showing the exit message
                 patterns_to_kill = [
                     'binance_tr_ws_client',  # Binance TR C++ executable
-                    'binance_ws_client',  # Binance CS C++ executable
+                    'binance_ws_client',  # Binance CS C++ executable (legacy)
+                    'binance_cs_ws_client',  # Binance CS WebSocket client
                     'websocket_shm_client',  # Legacy BTCTURK C++ executable
                     'binance_websocket_shm_client'  # Legacy shared memory client if exists
                     # Note: We don't kill terminal processes - they should stay open
@@ -1572,7 +1600,8 @@ class ArbitrageMonitor(QMainWindow):
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 executable_paths = [
                     os.path.join(current_dir, 'binance_tr_ws_client'),  # Binance TR client
-                    os.path.join(current_dir, 'binance_ws_client'),  # Binance CS client
+                    os.path.join(current_dir, 'binance_ws_client'),  # Binance CS client (legacy)
+                    os.path.join(current_dir, 'binance_cs_ws_client'),  # Binance CS WebSocket client
                     os.path.join(current_dir, 'build', 'websocket_shm_client'),  # Legacy
                     os.path.join(current_dir, 'build_binance', 'websocket_shm_client'),  # Legacy
                     os.path.join(current_dir, 'build_binance', 'binance_websocket_shm_client'),  # Legacy
@@ -1625,11 +1654,13 @@ class ArbitrageMonitor(QMainWindow):
                         # Try graceful first
                         subprocess.run(['killall', '-TERM', 'websocket_shm_client'], timeout=2, check=False)
                         subprocess.run(['killall', '-TERM', 'binance_ws_client'], timeout=2, check=False)
+                        subprocess.run(['killall', '-TERM', 'binance_cs_ws_client'], timeout=2, check=False)
                         subprocess.run(['killall', '-TERM', 'binance_websocket_shm_client'], timeout=2, check=False)  # Legacy
                         time.sleep(6)  # Wait for graceful shutdown (especially for Binance to avoid deadlock)
                         # Force kill as last resort
                         subprocess.run(['killall', '-KILL', 'websocket_shm_client'], timeout=2, check=False)
                         subprocess.run(['killall', '-KILL', 'binance_ws_client'], timeout=2, check=False)
+                        subprocess.run(['killall', '-KILL', 'binance_cs_ws_client'], timeout=2, check=False)
                         subprocess.run(['killall', '-KILL', 'binance_websocket_shm_client'], timeout=2, check=False)  # Legacy
                     except:
                         pass
@@ -1659,23 +1690,88 @@ class ArbitrageMonitor(QMainWindow):
                 print(error_msg)
                 logging.error(error_msg)
                 import traceback
-                tb = traceback.format_exc()
-                print(tb)
-                logging.error(tb)
-            
-            completion_msg = "All services cleanup completed"
-            print(completion_msg)
-            logging.info(completion_msg)
-            
+                traceback.print_exc()
+                
         except Exception as e:
             error_msg = f"Error stopping services: {e}"
             print(error_msg)
             logging.error(error_msg)
             import traceback
-            tb = traceback.format_exc()
-            print(tb)
-            logging.error(tb)
-
+            traceback.print_exc()
+                
+    def start_arbitrage_scripts(self):
+        """Start all available arbit_core_maker_BTR_*.py scripts found in the project folder."""
+        try:
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            self.arbitrage_processes = []
+            
+            # Find all arbit_core_maker_BTR_*.py scripts
+            import glob
+            script_pattern = os.path.join(current_dir, "arbit_core_maker_BTR_*.py")
+            script_files = glob.glob(script_pattern)
+            script_files.sort()  # Sort to ensure consistent order (1, 2, 3, ...)
+            
+            if not script_files:
+                logging.warning(f"No arbit_core_maker_BTR scripts found in {current_dir}")
+                return
+            
+            logging.info(f"Found {len(script_files)} arbitrage core script(s): {[os.path.basename(f) for f in script_files]}")
+            
+            for script_path in script_files:
+                script_name = os.path.basename(script_path)
+                
+                # Check if script is already running (optional - to prevent duplicates)
+                try:
+                    # Check if a process with this script is already running
+                    result = subprocess.run(
+                        ['pgrep', '-f', script_name],
+                        capture_output=True,
+                        timeout=2
+                    )
+                    if result.returncode == 0:
+                        logging.warning(f"{script_name} is already running, skipping...")
+                        continue
+                except Exception:
+                    pass  # If pgrep fails, continue anyway
+                
+                # Start arbitrage script in a new terminal window
+                try:
+                    cmd_command = (
+                        f'gnome-terminal --title="{script_name}" -- bash -c "'
+                        f'cd "{current_dir}" && '
+                        f'{sys.executable} "{script_path}"; '
+                        f'exec bash"'
+                    )
+                    
+                    process = subprocess.Popen(
+                        cmd_command,
+                        shell=True
+                    )
+                    self.arbitrage_processes.append({
+                        'process': process,
+                        'script_path': script_path,
+                        'script_name': script_name
+                    })
+                    logging.info(f"Started {script_name} in new terminal window (PID: {process.pid})")
+                    
+                    # Small delay between starting scripts to avoid overwhelming the system
+                    time.sleep(0.5)
+                    
+                except Exception as e:
+                    logging.error(f"Error starting {script_name}: {e}")
+            
+            logging.info(f"Started {len(self.arbitrage_processes)} arbitrage core script(s)")
+            
+            # Wait a bit for scripts to initialize
+            if self.arbitrage_processes:
+                logging.info("Waiting 3 seconds for arbitrage scripts to initialize...")
+                time.sleep(3)
+            
+        except Exception as e:
+            logging.error(f"Error starting arbitrage scripts: {e}")
+            import traceback
+            traceback.print_exc()
+    
     def export_redis_to_csv(self, key_name):
         """
         Connects to Redis, fetches data from specified lists, 

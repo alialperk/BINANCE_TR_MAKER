@@ -27,7 +27,7 @@ if ! pkg-config --exists openssl; then
 fi
 
 # Check if instruments file exists
-INSTRUMENTS_FILE="CS_common_instruments.json"
+INSTRUMENTS_FILE="common_symbol_info.json"
 if [ ! -f "$INSTRUMENTS_FILE" ]; then
     echo "Warning: $INSTRUMENTS_FILE not found."
     echo "The client will use default stream: btctry@depth5@100ms"
@@ -37,9 +37,13 @@ fi
 # Generate symbol-to-index mapping for shared memory
 echo "Generating symbol-to-index mapping..."
 if command -v python3 &> /dev/null; then
-    python3 create_symbol_mappings.py
-    if [ $? -ne 0 ]; then
-        echo "Warning: Failed to generate symbol mappings, continuing without shared memory"
+    if [ -f "create_symbol_mappings.py" ]; then
+        python3 create_symbol_mappings.py
+        if [ $? -ne 0 ]; then
+            echo "Warning: Failed to generate symbol mappings, continuing without shared memory"
+        fi
+    else
+        echo "Warning: create_symbol_mappings.py not found, skipping symbol mapping generation"
     fi
 else
     echo "Warning: python3 not found, skipping symbol mapping generation"

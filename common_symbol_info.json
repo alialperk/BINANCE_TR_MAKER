@@ -1,0 +1,2615 @@
+{
+  "total_common_symbols": 290,
+  "symbols": [
+    {
+      "base_symbol": "0G",
+      "binance_tr_symbol": "0G_TRY",
+      "binance_futures_symbol": "0GUSDT",
+      "CS_instrument_id": 8614,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "1MBABYDOGE",
+      "binance_tr_symbol": "1MBABYDOGE_TRY",
+      "binance_futures_symbol": "1MBABYDOGEUSDT",
+      "CS_instrument_id": 8351,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "2Z",
+      "binance_tr_symbol": "2Z_TRY",
+      "binance_futures_symbol": "2ZUSDT",
+      "CS_instrument_id": 8633,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "A",
+      "binance_tr_symbol": "A_TRY",
+      "binance_futures_symbol": "AUSDT",
+      "CS_instrument_id": 8526,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "AAVE",
+      "binance_tr_symbol": "AAVE_TRY",
+      "binance_futures_symbol": "AAVEUSDT",
+      "CS_instrument_id": 73266,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "ACE",
+      "binance_tr_symbol": "ACE_TRY",
+      "binance_futures_symbol": "ACEUSDT",
+      "CS_instrument_id": 8251,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ACH",
+      "binance_tr_symbol": "ACH_TRY",
+      "binance_futures_symbol": "ACHUSDT",
+      "CS_instrument_id": 8160,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "ACT",
+      "binance_tr_symbol": "ACT_TRY",
+      "binance_futures_symbol": "ACTUSDT",
+      "CS_instrument_id": 8380,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ACX",
+      "binance_tr_symbol": "ACX_TRY",
+      "binance_futures_symbol": "ACXUSDT",
+      "CS_instrument_id": 8396,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ADA",
+      "binance_tr_symbol": "ADA_TRY",
+      "binance_futures_symbol": "ADAUSDT",
+      "CS_instrument_id": 70922,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "AEVO",
+      "binance_tr_symbol": "AEVO_TRY",
+      "binance_futures_symbol": "AEVOUSDT",
+      "CS_instrument_id": 8287,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "AI",
+      "binance_tr_symbol": "AI_TRY",
+      "binance_futures_symbol": "AIUSDT",
+      "CS_instrument_id": 8261,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "AIXBT",
+      "binance_tr_symbol": "AIXBT_TRY",
+      "binance_futures_symbol": "AIXBTUSDT",
+      "CS_instrument_id": 8412,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ALGO",
+      "binance_tr_symbol": "ALGO_TRY",
+      "binance_futures_symbol": "ALGOUSDT",
+      "CS_instrument_id": 71844,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ALICE",
+      "binance_tr_symbol": "ALICE_TRY",
+      "binance_futures_symbol": "ALICEUSDT",
+      "CS_instrument_id": 8024,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "ALLO",
+      "binance_tr_symbol": "ALLO_TRY",
+      "binance_futures_symbol": "ALLOUSDT",
+      "CS_instrument_id": 8666,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ALPINE",
+      "binance_tr_symbol": "ALPINE_TRY",
+      "binance_futures_symbol": "ALPINEUSDT",
+      "CS_instrument_id": 8510,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ALT",
+      "binance_tr_symbol": "ALT_TRY",
+      "binance_futures_symbol": "ALTUSDT",
+      "CS_instrument_id": 8268,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "ANIME",
+      "binance_tr_symbol": "ANIME_TRY",
+      "binance_futures_symbol": "ANIMEUSDT",
+      "CS_instrument_id": 8439,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ANKR",
+      "binance_tr_symbol": "ANKR_TRY",
+      "binance_futures_symbol": "ANKRUSDT",
+      "CS_instrument_id": 8010,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "APE",
+      "binance_tr_symbol": "APE_TRY",
+      "binance_futures_symbol": "APEUSDT",
+      "CS_instrument_id": 8084,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "API3",
+      "binance_tr_symbol": "API3_TRY",
+      "binance_futures_symbol": "API3USDT",
+      "CS_instrument_id": 8081,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "APT",
+      "binance_tr_symbol": "APT_TRY",
+      "binance_futures_symbol": "APTUSDT",
+      "CS_instrument_id": 8137,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "AR",
+      "binance_tr_symbol": "AR_TRY",
+      "binance_futures_symbol": "ARUSDT",
+      "CS_instrument_id": 8065,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ARB",
+      "binance_tr_symbol": "ARB_TRY",
+      "binance_futures_symbol": "ARBUSDT",
+      "CS_instrument_id": 8168,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ARK",
+      "binance_tr_symbol": "ARK_TRY",
+      "binance_futures_symbol": "ARKUSDT",
+      "CS_instrument_id": 8208,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ARKM",
+      "binance_tr_symbol": "ARKM_TRY",
+      "binance_futures_symbol": "ARKMUSDT",
+      "CS_instrument_id": 8197,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ARPA",
+      "binance_tr_symbol": "ARPA_TRY",
+      "binance_futures_symbol": "ARPAUSDT",
+      "CS_instrument_id": 8067,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "ASR",
+      "binance_tr_symbol": "ASR_TRY",
+      "binance_futures_symbol": "ASRUSDT",
+      "CS_instrument_id": 8509,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ASTER",
+      "binance_tr_symbol": "ASTER_TRY",
+      "binance_futures_symbol": "ASTERUSDT",
+      "CS_instrument_id": 8617,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "AT",
+      "binance_tr_symbol": "AT_TRY",
+      "binance_futures_symbol": "ATUSDT",
+      "CS_instrument_id": 8658,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ATOM",
+      "binance_tr_symbol": "ATOM_TRY",
+      "binance_futures_symbol": "ATOMUSDT",
+      "CS_instrument_id": 70954,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "AUCTION",
+      "binance_tr_symbol": "AUCTION_TRY",
+      "binance_futures_symbol": "AUCTIONUSDT",
+      "CS_instrument_id": 8249,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "AVAX",
+      "binance_tr_symbol": "AVAX_TRY",
+      "binance_futures_symbol": "AVAXUSDT",
+      "CS_instrument_id": 73030,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "AVNT",
+      "binance_tr_symbol": "AVNT_TRY",
+      "binance_futures_symbol": "AVNTUSDT",
+      "CS_instrument_id": 8607,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "AXL",
+      "binance_tr_symbol": "AXL_TRY",
+      "binance_futures_symbol": "AXLUSDT",
+      "CS_instrument_id": 8283,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "AXS",
+      "binance_tr_symbol": "AXS_TRY",
+      "binance_futures_symbol": "AXSUSDT",
+      "CS_instrument_id": 73601,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "BABY",
+      "binance_tr_symbol": "BABY_TRY",
+      "binance_futures_symbol": "BABYUSDT",
+      "CS_instrument_id": 8484,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "BANANA",
+      "binance_tr_symbol": "BANANA_TRY",
+      "binance_futures_symbol": "BANANAUSDT",
+      "CS_instrument_id": 8328,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "BANK",
+      "binance_tr_symbol": "BANK_TRY",
+      "binance_futures_symbol": "BANKUSDT",
+      "CS_instrument_id": 8495,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "BARD",
+      "binance_tr_symbol": "BARD_TRY",
+      "binance_futures_symbol": "BARDUSDT",
+      "CS_instrument_id": 8616,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "BB",
+      "binance_tr_symbol": "BB_TRY",
+      "binance_futures_symbol": "BBUSDT",
+      "CS_instrument_id": 8316,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "BCH",
+      "binance_tr_symbol": "BCH_TRY",
+      "binance_futures_symbol": "BCHUSDT",
+      "CS_instrument_id": 67826,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "BEAMX",
+      "binance_tr_symbol": "BEAMX_TRY",
+      "binance_futures_symbol": "BEAMXUSDT",
+      "CS_instrument_id": 8240,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "BEL",
+      "binance_tr_symbol": "BEL_TRY",
+      "binance_futures_symbol": "BELUSDT",
+      "CS_instrument_id": 73580,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "BERA",
+      "binance_tr_symbol": "BERA_TRY",
+      "binance_futures_symbol": "BERAUSDT",
+      "CS_instrument_id": 8443,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "BIO",
+      "binance_tr_symbol": "BIO_TRY",
+      "binance_futures_symbol": "BIOUSDT",
+      "CS_instrument_id": 8425,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "BLUR",
+      "binance_tr_symbol": "BLUR_TRY",
+      "binance_futures_symbol": "BLURUSDT",
+      "CS_instrument_id": 8179,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "BMT",
+      "binance_tr_symbol": "BMT_TRY",
+      "binance_futures_symbol": "BMTUSDT",
+      "CS_instrument_id": 8461,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "BNB",
+      "binance_tr_symbol": "BNB_TRY",
+      "binance_futures_symbol": "BNBUSDT",
+      "CS_instrument_id": 70956,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "BOME",
+      "binance_tr_symbol": "BOME_TRY",
+      "binance_futures_symbol": "BOMEUSDT",
+      "CS_instrument_id": 8290,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "BONK",
+      "binance_tr_symbol": "BONK_TRY",
+      "binance_futures_symbol": "1000BONKUSDT",
+      "CS_instrument_id": 8241,
+      "binance_tr_price_precision": 7,
+      "binance_tr_price_step_size": 1e-07,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "BREV",
+      "binance_tr_symbol": "BREV_TRY",
+      "binance_futures_symbol": "BREVUSDT",
+      "CS_instrument_id": 8687,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "BTC",
+      "binance_tr_symbol": "BTC_TRY",
+      "binance_futures_symbol": "BTCUSDT",
+      "CS_instrument_id": 67824,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 5
+    },
+    {
+      "base_symbol": "C",
+      "binance_tr_symbol": "C_TRY",
+      "binance_futures_symbol": "CUSDT",
+      "CS_instrument_id": 8562,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "CAKE",
+      "binance_tr_symbol": "CAKE_TRY",
+      "binance_futures_symbol": "CAKEUSDT",
+      "CS_instrument_id": 8229,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "CAT",
+      "binance_tr_symbol": "1000CAT_TRY",
+      "binance_futures_symbol": "1000CATUSDT",
+      "CS_instrument_id": 8366,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "CATI",
+      "binance_tr_symbol": "CATI_TRY",
+      "binance_futures_symbol": "CATIUSDT",
+      "CS_instrument_id": 8356,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "CELO",
+      "binance_tr_symbol": "CELO_TRY",
+      "binance_futures_symbol": "CELOUSDT",
+      "CS_instrument_id": 8064,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "CETUS",
+      "binance_tr_symbol": "CETUS_TRY",
+      "binance_futures_symbol": "CETUSUSDT",
+      "CS_instrument_id": 8375,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "CFX",
+      "binance_tr_symbol": "CFX_TRY",
+      "binance_futures_symbol": "CFXUSDT",
+      "CS_instrument_id": 8157,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "CHZ",
+      "binance_tr_symbol": "CHZ_TRY",
+      "binance_futures_symbol": "CHZUSDT",
+      "CS_instrument_id": 8008,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "CKB",
+      "binance_tr_symbol": "CKB_TRY",
+      "binance_futures_symbol": "CKBUSDT",
+      "CS_instrument_id": 8162,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "COMP",
+      "binance_tr_symbol": "COMP_TRY",
+      "binance_futures_symbol": "COMPUSDT",
+      "CS_instrument_id": 71949,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "COS",
+      "binance_tr_symbol": "COS_TRY",
+      "binance_futures_symbol": "COSUSDT",
+      "CS_instrument_id": 8363,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "COTI",
+      "binance_tr_symbol": "COTI_TRY",
+      "binance_futures_symbol": "COTIUSDT",
+      "CS_instrument_id": 8021,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "COW",
+      "binance_tr_symbol": "COW_TRY",
+      "binance_futures_symbol": "COWUSDT",
+      "CS_instrument_id": 8374,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "CRV",
+      "binance_tr_symbol": "CRV_TRY",
+      "binance_futures_symbol": "CRVUSDT",
+      "CS_instrument_id": 72573,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "CYBER",
+      "binance_tr_symbol": "CYBER_TRY",
+      "binance_futures_symbol": "CYBERUSDT",
+      "CS_instrument_id": 8206,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "D",
+      "binance_tr_symbol": "D_TRY",
+      "binance_futures_symbol": "DUSDT",
+      "CS_instrument_id": 8430,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "DASH",
+      "binance_tr_symbol": "DASH_TRY",
+      "binance_futures_symbol": "DASHUSDT",
+      "CS_instrument_id": 70951,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "DENT",
+      "binance_tr_symbol": "DENT_TRY",
+      "binance_futures_symbol": "DENTUSDT",
+      "CS_instrument_id": 8029,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "DOGE",
+      "binance_tr_symbol": "DOGE_TRY",
+      "binance_futures_symbol": "DOGEUSDT",
+      "CS_instrument_id": 72026,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "DOGS",
+      "binance_tr_symbol": "DOGS_TRY",
+      "binance_futures_symbol": "DOGSUSDT",
+      "CS_instrument_id": 8340,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "DOLO",
+      "binance_tr_symbol": "DOLO_TRY",
+      "binance_futures_symbol": "DOLOUSDT",
+      "CS_instrument_id": 8506,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "DOT",
+      "binance_tr_symbol": "DOT_TRY",
+      "binance_futures_symbol": "DOTUSDT",
+      "CS_instrument_id": 72449,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "DYDX",
+      "binance_tr_symbol": "DYDX_TRY",
+      "binance_futures_symbol": "DYDXUSDT",
+      "CS_instrument_id": 8059,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "DYM",
+      "binance_tr_symbol": "DYM_TRY",
+      "binance_futures_symbol": "DYMUSDT",
+      "CS_instrument_id": 8272,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "EDEN",
+      "binance_tr_symbol": "EDEN_TRY",
+      "binance_futures_symbol": "EDENUSDT",
+      "CS_instrument_id": 8630,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "EDU",
+      "binance_tr_symbol": "EDU_TRY",
+      "binance_futures_symbol": "EDUUSDT",
+      "CS_instrument_id": 8180,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "EGLD",
+      "binance_tr_symbol": "EGLD_TRY",
+      "binance_futures_symbol": "EGLDUSDT",
+      "CS_instrument_id": 72841,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "EIGEN",
+      "binance_tr_symbol": "EIGEN_TRY",
+      "binance_futures_symbol": "EIGENUSDT",
+      "CS_instrument_id": 8364,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ENA",
+      "binance_tr_symbol": "ENA_TRY",
+      "binance_futures_symbol": "ENAUSDT",
+      "CS_instrument_id": 8296,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ENJ",
+      "binance_tr_symbol": "ENJ_TRY",
+      "binance_futures_symbol": "ENJUSDT",
+      "CS_instrument_id": 73111,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ENS",
+      "binance_tr_symbol": "ENS_TRY",
+      "binance_futures_symbol": "ENSUSDT",
+      "CS_instrument_id": 8071,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "ENSO",
+      "binance_tr_symbol": "ENSO_TRY",
+      "binance_futures_symbol": "ENSOUSDT",
+      "CS_instrument_id": 8643,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ERA",
+      "binance_tr_symbol": "ERA_TRY",
+      "binance_futures_symbol": "ERAUSDT",
+      "CS_instrument_id": 8565,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ETC",
+      "binance_tr_symbol": "ETC_TRY",
+      "binance_futures_symbol": "ETCUSDT",
+      "CS_instrument_id": 70855,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "ETH",
+      "binance_tr_symbol": "ETH_TRY",
+      "binance_futures_symbol": "ETHUSDT",
+      "CS_instrument_id": 67825,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 4
+    },
+    {
+      "base_symbol": "ETHFI",
+      "binance_tr_symbol": "ETHFI_TRY",
+      "binance_futures_symbol": "ETHFIUSDT",
+      "CS_instrument_id": 8291,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "EUL",
+      "binance_tr_symbol": "EUL_TRY",
+      "binance_futures_symbol": "EULUSDT",
+      "CS_instrument_id": 8642,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "F",
+      "binance_tr_symbol": "F_TRY",
+      "binance_futures_symbol": "FUSDT",
+      "CS_instrument_id": 8545,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "FET",
+      "binance_tr_symbol": "FET_TRY",
+      "binance_futures_symbol": "FETUSDT",
+      "CS_instrument_id": 8143,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "FF",
+      "binance_tr_symbol": "FF_TRY",
+      "binance_futures_symbol": "FFUSDT",
+      "CS_instrument_id": 8628,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "FIDA",
+      "binance_tr_symbol": "FIDA_TRY",
+      "binance_futures_symbol": "FIDAUSDT",
+      "CS_instrument_id": 8354,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "FIL",
+      "binance_tr_symbol": "FIL_TRY",
+      "binance_futures_symbol": "FILUSDT",
+      "CS_instrument_id": 73267,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "FLOKI",
+      "binance_tr_symbol": "FLOKI_TRY",
+      "binance_futures_symbol": "1000FLOKIUSDT",
+      "CS_instrument_id": 8184,
+      "binance_tr_price_precision": 6,
+      "binance_tr_price_step_size": 1e-06,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "FOGO",
+      "binance_tr_symbol": "FOGO_TRY",
+      "binance_futures_symbol": "FOGOUSDT",
+      "CS_instrument_id": 8692,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "FORM",
+      "binance_tr_symbol": "FORM_TRY",
+      "binance_futures_symbol": "FORMUSDT",
+      "CS_instrument_id": 8463,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "G",
+      "binance_tr_symbol": "G_TRY",
+      "binance_futures_symbol": "GUSDT",
+      "CS_instrument_id": 8330,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "GALA",
+      "binance_tr_symbol": "GALA_TRY",
+      "binance_futures_symbol": "GALAUSDT",
+      "CS_instrument_id": 8061,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "GAS",
+      "binance_tr_symbol": "GAS_TRY",
+      "binance_futures_symbol": "GASUSDT",
+      "CS_instrument_id": 8224,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "GIGGLE",
+      "binance_tr_symbol": "GIGGLE_TRY",
+      "binance_futures_symbol": "GIGGLEUSDT",
+      "CS_instrument_id": 8638,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "GMT",
+      "binance_tr_symbol": "GMT_TRY",
+      "binance_futures_symbol": "GMTUSDT",
+      "CS_instrument_id": 8083,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "GPS",
+      "binance_tr_symbol": "GPS_TRY",
+      "binance_futures_symbol": "GPSUSDT",
+      "CS_instrument_id": 8449,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "GRT",
+      "binance_tr_symbol": "GRT_TRY",
+      "binance_futures_symbol": "GRTUSDT",
+      "CS_instrument_id": 8001,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "GUN",
+      "binance_tr_symbol": "GUN_TRY",
+      "binance_futures_symbol": "GUNUSDT",
+      "CS_instrument_id": 8482,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "HAEDAL",
+      "binance_tr_symbol": "HAEDAL_TRY",
+      "binance_futures_symbol": "HAEDALUSDT",
+      "CS_instrument_id": 8507,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "HBAR",
+      "binance_tr_symbol": "HBAR_TRY",
+      "binance_futures_symbol": "HBARUSDT",
+      "CS_instrument_id": 8025,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "HEI",
+      "binance_tr_symbol": "HEI_TRY",
+      "binance_futures_symbol": "HEIUSDT",
+      "CS_instrument_id": 8446,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "HEMI",
+      "binance_tr_symbol": "HEMI_TRY",
+      "binance_futures_symbol": "HEMIUSDT",
+      "CS_instrument_id": 8597,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "HIGH",
+      "binance_tr_symbol": "HIGH_TRY",
+      "binance_futures_symbol": "HIGHUSDT",
+      "CS_instrument_id": 8151,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "HIVE",
+      "binance_tr_symbol": "HIVE_TRY",
+      "binance_futures_symbol": "HIVEUSDT",
+      "CS_instrument_id": 8416,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "HMSTR",
+      "binance_tr_symbol": "HMSTR_TRY",
+      "binance_futures_symbol": "HMSTRUSDT",
+      "CS_instrument_id": 8359,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "HOLO",
+      "binance_tr_symbol": "HOLO_TRY",
+      "binance_futures_symbol": "HOLOUSDT",
+      "CS_instrument_id": 8608,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "HOME",
+      "binance_tr_symbol": "HOME_TRY",
+      "binance_futures_symbol": "HOMEUSDT",
+      "CS_instrument_id": 8536,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "HOT",
+      "binance_tr_symbol": "HOT_TRY",
+      "binance_futures_symbol": "HOTUSDT",
+      "CS_instrument_id": 8031,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "HUMA",
+      "binance_tr_symbol": "HUMA_TRY",
+      "binance_futures_symbol": "HUMAUSDT",
+      "CS_instrument_id": 8525,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "HYPER",
+      "binance_tr_symbol": "HYPER_TRY",
+      "binance_futures_symbol": "HYPERUSDT",
+      "CS_instrument_id": 8498,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ICP",
+      "binance_tr_symbol": "ICP_TRY",
+      "binance_futures_symbol": "ICPUSDT",
+      "CS_instrument_id": 8038,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "ID",
+      "binance_tr_symbol": "ID_TRY",
+      "binance_futures_symbol": "IDUSDT",
+      "CS_instrument_id": 8167,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "INIT",
+      "binance_tr_symbol": "INIT_TRY",
+      "binance_futures_symbol": "INITUSDT",
+      "CS_instrument_id": 8493,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "INJ",
+      "binance_tr_symbol": "INJ_TRY",
+      "binance_futures_symbol": "INJUSDT",
+      "CS_instrument_id": 8125,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "IO",
+      "binance_tr_symbol": "IO_TRY",
+      "binance_futures_symbol": "IOUSDT",
+      "CS_instrument_id": 8319,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "IOTA",
+      "binance_tr_symbol": "IOTA_TRY",
+      "binance_futures_symbol": "IOTAUSDT",
+      "CS_instrument_id": 70958,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "JASMY",
+      "binance_tr_symbol": "JASMY_TRY",
+      "binance_futures_symbol": "JASMYUSDT",
+      "CS_instrument_id": 8090,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "JTO",
+      "binance_tr_symbol": "JTO_TRY",
+      "binance_futures_symbol": "JTOUSDT",
+      "CS_instrument_id": 8247,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "JUP",
+      "binance_tr_symbol": "JUP_TRY",
+      "binance_futures_symbol": "JUPUSDT",
+      "CS_instrument_id": 8269,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "KAITO",
+      "binance_tr_symbol": "KAITO_TRY",
+      "binance_futures_symbol": "KAITOUSDT",
+      "CS_instrument_id": 8451,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "KERNEL",
+      "binance_tr_symbol": "KERNEL_TRY",
+      "binance_futures_symbol": "KERNELUSDT",
+      "CS_instrument_id": 8491,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "KITE",
+      "binance_tr_symbol": "KITE_TRY",
+      "binance_futures_symbol": "KITEUSDT",
+      "CS_instrument_id": 8657,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "KSM",
+      "binance_tr_symbol": "KSM_TRY",
+      "binance_futures_symbol": "KSMUSDT",
+      "CS_instrument_id": 73238,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "LA",
+      "binance_tr_symbol": "LA_TRY",
+      "binance_futures_symbol": "LAUSDT",
+      "CS_instrument_id": 8534,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "LAYER",
+      "binance_tr_symbol": "LAYER_TRY",
+      "binance_futures_symbol": "LAYERUSDT",
+      "CS_instrument_id": 8445,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "LDO",
+      "binance_tr_symbol": "LDO_TRY",
+      "binance_futures_symbol": "LDOUSDT",
+      "CS_instrument_id": 8133,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "LINEA",
+      "binance_tr_symbol": "LINEA_TRY",
+      "binance_futures_symbol": "LINEAUSDT",
+      "CS_instrument_id": 8598,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "LINK",
+      "binance_tr_symbol": "LINK_TRY",
+      "binance_futures_symbol": "LINKUSDT",
+      "CS_instrument_id": 70859,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "LISTA",
+      "binance_tr_symbol": "LISTA_TRY",
+      "binance_futures_symbol": "LISTAUSDT",
+      "CS_instrument_id": 8322,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "LPT",
+      "binance_tr_symbol": "LPT_TRY",
+      "binance_futures_symbol": "LPTUSDT",
+      "CS_instrument_id": 8070,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "LRC",
+      "binance_tr_symbol": "LRC_TRY",
+      "binance_futures_symbol": "LRCUSDT",
+      "CS_instrument_id": 73316,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "LTC",
+      "binance_tr_symbol": "LTC_TRY",
+      "binance_futures_symbol": "LTCUSDT",
+      "CS_instrument_id": 70825,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "LUMIA",
+      "binance_tr_symbol": "LUMIA_TRY",
+      "binance_futures_symbol": "LUMIAUSDT",
+      "CS_instrument_id": 8410,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "LUNA",
+      "binance_tr_symbol": "LUNA_TRY",
+      "binance_futures_symbol": "LUNA2USDT",
+      "CS_instrument_id": 8130,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "LUNC",
+      "binance_tr_symbol": "LUNC_TRY",
+      "binance_futures_symbol": "1000LUNCUSDT",
+      "CS_instrument_id": 8129,
+      "binance_tr_price_precision": 6,
+      "binance_tr_price_step_size": 1e-06,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "MAGIC",
+      "binance_tr_symbol": "MAGIC_TRY",
+      "binance_futures_symbol": "MAGICUSDT",
+      "CS_instrument_id": 8147,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MANA",
+      "binance_tr_symbol": "MANA_TRY",
+      "binance_futures_symbol": "MANAUSDT",
+      "CS_instrument_id": 8023,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MANTA",
+      "binance_tr_symbol": "MANTA_TRY",
+      "binance_futures_symbol": "MANTAUSDT",
+      "CS_instrument_id": 8265,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MASK",
+      "binance_tr_symbol": "MASK_TRY",
+      "binance_futures_symbol": "MASKUSDT",
+      "CS_instrument_id": 8055,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MAV",
+      "binance_tr_symbol": "MAV_TRY",
+      "binance_futures_symbol": "MAVUSDT",
+      "CS_instrument_id": 8192,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "MBOX",
+      "binance_tr_symbol": "MBOX_TRY",
+      "binance_futures_symbol": "MBOXUSDT",
+      "CS_instrument_id": 8341,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ME",
+      "binance_tr_symbol": "ME_TRY",
+      "binance_futures_symbol": "MEUSDT",
+      "CS_instrument_id": 8403,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "MEME",
+      "binance_tr_symbol": "MEME_TRY",
+      "binance_futures_symbol": "MEMEUSDT",
+      "CS_instrument_id": 8230,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "MET",
+      "binance_tr_symbol": "MET_TRY",
+      "binance_futures_symbol": "METUSDT",
+      "CS_instrument_id": 8641,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "METIS",
+      "binance_tr_symbol": "METIS_TRY",
+      "binance_futures_symbol": "METISUSDT",
+      "CS_instrument_id": 8286,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "MINA",
+      "binance_tr_symbol": "MINA_TRY",
+      "binance_futures_symbol": "MINAUSDT",
+      "CS_instrument_id": 8150,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "MIRA",
+      "binance_tr_symbol": "MIRA_TRY",
+      "binance_futures_symbol": "MIRAUSDT",
+      "CS_instrument_id": 8623,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MITO",
+      "binance_tr_symbol": "MITO_TRY",
+      "binance_futures_symbol": "MITOUSDT",
+      "CS_instrument_id": 8596,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MMT",
+      "binance_tr_symbol": "MMT_TRY",
+      "binance_futures_symbol": "MMTUSDT",
+      "CS_instrument_id": 8660,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MORPHO",
+      "binance_tr_symbol": "MORPHO_TRY",
+      "binance_futures_symbol": "MORPHOUSDT",
+      "CS_instrument_id": 8392,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "MOVE",
+      "binance_tr_symbol": "MOVE_TRY",
+      "binance_futures_symbol": "MOVEUSDT",
+      "CS_instrument_id": 8398,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "MOVR",
+      "binance_tr_symbol": "MOVR_TRY",
+      "binance_futures_symbol": "MOVRUSDT",
+      "CS_instrument_id": 8252,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "MUBARAK",
+      "binance_tr_symbol": "MUBARAK_TRY",
+      "binance_futures_symbol": "MUBARAKUSDT",
+      "CS_instrument_id": 8462,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "NEAR",
+      "binance_tr_symbol": "NEAR_TRY",
+      "binance_futures_symbol": "NEARUSDT",
+      "CS_instrument_id": 73254,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "NEIRO",
+      "binance_tr_symbol": "NEIRO_TRY",
+      "binance_futures_symbol": "NEIROUSDT",
+      "CS_instrument_id": 8352,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "NEO",
+      "binance_tr_symbol": "NEO_TRY",
+      "binance_futures_symbol": "NEOUSDT",
+      "CS_instrument_id": 70961,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "NEWT",
+      "binance_tr_symbol": "NEWT_TRY",
+      "binance_futures_symbol": "NEWTUSDT",
+      "CS_instrument_id": 8546,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "NFP",
+      "binance_tr_symbol": "NFP_TRY",
+      "binance_futures_symbol": "NFPUSDT",
+      "CS_instrument_id": 8253,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "NIL",
+      "binance_tr_symbol": "NIL_TRY",
+      "binance_futures_symbol": "NILUSDT",
+      "CS_instrument_id": 8472,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "NMR",
+      "binance_tr_symbol": "NMR_TRY",
+      "binance_futures_symbol": "NMRUSDT",
+      "CS_instrument_id": 8189,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "NOM",
+      "binance_tr_symbol": "NOM_TRY",
+      "binance_futures_symbol": "NOMUSDT",
+      "CS_instrument_id": 8631,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "NOT",
+      "binance_tr_symbol": "NOT_TRY",
+      "binance_futures_symbol": "NOTUSDT",
+      "CS_instrument_id": 8317,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "NTRN",
+      "binance_tr_symbol": "NTRN_TRY",
+      "binance_futures_symbol": "NTRNUSDT",
+      "CS_instrument_id": 8237,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "NXPC",
+      "binance_tr_symbol": "NXPC_TRY",
+      "binance_futures_symbol": "NXPCUSDT",
+      "CS_instrument_id": 8519,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "OG",
+      "binance_tr_symbol": "OG_TRY",
+      "binance_futures_symbol": "OGUSDT",
+      "CS_instrument_id": 8516,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "OGN",
+      "binance_tr_symbol": "OGN_TRY",
+      "binance_futures_symbol": "OGNUSDT",
+      "CS_instrument_id": 1015741,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "OM",
+      "binance_tr_symbol": "OM_TRY",
+      "binance_futures_symbol": "OMUSDT",
+      "CS_instrument_id": 8274,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ONDO",
+      "binance_tr_symbol": "ONDO_TRY",
+      "binance_futures_symbol": "ONDOUSDT",
+      "CS_instrument_id": 8266,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ONE",
+      "binance_tr_symbol": "ONE_TRY",
+      "binance_futures_symbol": "ONEUSDT",
+      "CS_instrument_id": 8026,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ONT",
+      "binance_tr_symbol": "ONT_TRY",
+      "binance_futures_symbol": "ONTUSDT",
+      "CS_instrument_id": 70957,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "OP",
+      "binance_tr_symbol": "OP_TRY",
+      "binance_futures_symbol": "OPUSDT",
+      "CS_instrument_id": 8106,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "OPEN",
+      "binance_tr_symbol": "OPEN_TRY",
+      "binance_futures_symbol": "OPENUSDT",
+      "CS_instrument_id": 8604,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ORCA",
+      "binance_tr_symbol": "ORCA_TRY",
+      "binance_futures_symbol": "ORCAUSDT",
+      "CS_instrument_id": 8397,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ORDI",
+      "binance_tr_symbol": "ORDI_TRY",
+      "binance_futures_symbol": "ORDIUSDT",
+      "CS_instrument_id": 8233,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "PARTI",
+      "binance_tr_symbol": "PARTI_TRY",
+      "binance_futures_symbol": "PARTIUSDT",
+      "CS_instrument_id": 8473,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "PAXG",
+      "binance_tr_symbol": "PAXG_TRY",
+      "binance_futures_symbol": "PAXGUSDT",
+      "CS_instrument_id": 8476,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 4
+    },
+    {
+      "base_symbol": "PENDLE",
+      "binance_tr_symbol": "PENDLE_TRY",
+      "binance_futures_symbol": "PENDLEUSDT",
+      "CS_instrument_id": 8196,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "PENGU",
+      "binance_tr_symbol": "PENGU_TRY",
+      "binance_futures_symbol": "PENGUUSDT",
+      "CS_instrument_id": 8409,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "PEOPLE",
+      "binance_tr_symbol": "PEOPLE_TRY",
+      "binance_futures_symbol": "PEOPLEUSDT",
+      "CS_instrument_id": 8074,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "PEPE",
+      "binance_tr_symbol": "PEPE_TRY",
+      "binance_futures_symbol": "1000PEPEUSDT",
+      "CS_instrument_id": 8183,
+      "binance_tr_price_precision": 8,
+      "binance_tr_price_step_size": 1e-08,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "PHA",
+      "binance_tr_symbol": "PHA_TRY",
+      "binance_futures_symbol": "PHAUSDT",
+      "CS_instrument_id": 8420,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "PHB",
+      "binance_tr_symbol": "PHB_TRY",
+      "binance_futures_symbol": "PHBUSDT",
+      "CS_instrument_id": 8155,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "PIXEL",
+      "binance_tr_symbol": "PIXEL_TRY",
+      "binance_futures_symbol": "PIXELUSDT",
+      "CS_instrument_id": 8276,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "PLUME",
+      "binance_tr_symbol": "PLUME_TRY",
+      "binance_futures_symbol": "PLUMEUSDT",
+      "CS_instrument_id": 8471,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "PNUT",
+      "binance_tr_symbol": "PNUT_TRY",
+      "binance_futures_symbol": "PNUTUSDT",
+      "CS_instrument_id": 8381,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "POL",
+      "binance_tr_symbol": "POL_TRY",
+      "binance_futures_symbol": "POLUSDT",
+      "CS_instrument_id": 8349,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "POLYX",
+      "binance_tr_symbol": "POLYX_TRY",
+      "binance_futures_symbol": "POLYXUSDT",
+      "CS_instrument_id": 8223,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "PORTAL",
+      "binance_tr_symbol": "PORTAL_TRY",
+      "binance_futures_symbol": "PORTALUSDT",
+      "CS_instrument_id": 8281,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "PROVE",
+      "binance_tr_symbol": "PROVE_TRY",
+      "binance_futures_symbol": "PROVEUSDT",
+      "CS_instrument_id": 8579,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "PUMP",
+      "binance_tr_symbol": "PUMP_TRY",
+      "binance_futures_symbol": "PUMPUSDT",
+      "CS_instrument_id": 8559,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "PYTH",
+      "binance_tr_symbol": "PYTH_TRY",
+      "binance_futures_symbol": "PYTHUSDT",
+      "CS_instrument_id": 8242,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "QTUM",
+      "binance_tr_symbol": "QTUM_TRY",
+      "binance_futures_symbol": "QTUMUSDT",
+      "CS_instrument_id": 70962,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "RARE",
+      "binance_tr_symbol": "RARE_TRY",
+      "binance_futures_symbol": "RAREUSDT",
+      "CS_instrument_id": 8329,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "RDNT",
+      "binance_tr_symbol": "RDNT_TRY",
+      "binance_futures_symbol": "RDNTUSDT",
+      "CS_instrument_id": 8175,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "RED",
+      "binance_tr_symbol": "RED_TRY",
+      "binance_futures_symbol": "REDUSDT",
+      "CS_instrument_id": 8456,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "RENDER",
+      "binance_tr_symbol": "RENDER_TRY",
+      "binance_futures_symbol": "RENDERUSDT",
+      "CS_instrument_id": 8327,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "RESOLV",
+      "binance_tr_symbol": "RESOLV_TRY",
+      "binance_futures_symbol": "RESOLVUSDT",
+      "CS_instrument_id": 8537,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "REZ",
+      "binance_tr_symbol": "REZ_TRY",
+      "binance_futures_symbol": "REZUSDT",
+      "CS_instrument_id": 8312,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "RONIN",
+      "binance_tr_symbol": "RONIN_TRY",
+      "binance_futures_symbol": "RONINUSDT",
+      "CS_instrument_id": 8271,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "ROSE",
+      "binance_tr_symbol": "ROSE_TRY",
+      "binance_futures_symbol": "ROSEUSDT",
+      "CS_instrument_id": 8076,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "RSR",
+      "binance_tr_symbol": "RSR_TRY",
+      "binance_futures_symbol": "RSRUSDT",
+      "CS_instrument_id": 73315,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "RVN",
+      "binance_tr_symbol": "RVN_TRY",
+      "binance_futures_symbol": "RVNUSDT",
+      "CS_instrument_id": 8017,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "S",
+      "binance_tr_symbol": "S_TRY",
+      "binance_futures_symbol": "SUSDT",
+      "CS_instrument_id": 8432,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SAGA",
+      "binance_tr_symbol": "SAGA_TRY",
+      "binance_futures_symbol": "SAGAUSDT",
+      "CS_instrument_id": 8301,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SAHARA",
+      "binance_tr_symbol": "SAHARA_TRY",
+      "binance_futures_symbol": "SAHARAUSDT",
+      "CS_instrument_id": 8550,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SAND",
+      "binance_tr_symbol": "SAND_TRY",
+      "binance_futures_symbol": "SANDUSDT",
+      "CS_instrument_id": 8009,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SANTOS",
+      "binance_tr_symbol": "SANTOS_TRY",
+      "binance_futures_symbol": "SANTOSUSDT",
+      "CS_instrument_id": 8371,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "SAPIEN",
+      "binance_tr_symbol": "SAPIEN_TRY",
+      "binance_futures_symbol": "SAPIENUSDT",
+      "CS_instrument_id": 8589,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SATS",
+      "binance_tr_symbol": "1000SATS_TRY",
+      "binance_futures_symbol": "1000SATSUSDT",
+      "CS_instrument_id": 8248,
+      "binance_tr_price_precision": 6,
+      "binance_tr_price_step_size": 1e-06,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SCR",
+      "binance_tr_symbol": "SCR_TRY",
+      "binance_futures_symbol": "SCRUSDT",
+      "CS_instrument_id": 8367,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SEI",
+      "binance_tr_symbol": "SEI_TRY",
+      "binance_futures_symbol": "SEIUSDT",
+      "CS_instrument_id": 8203,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SHELL",
+      "binance_tr_symbol": "SHELL_TRY",
+      "binance_futures_symbol": "SHELLUSDT",
+      "CS_instrument_id": 8450,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SHIB",
+      "binance_tr_symbol": "SHIB_TRY",
+      "binance_futures_symbol": "1000SHIBUSDT",
+      "CS_instrument_id": 8037,
+      "binance_tr_price_precision": 7,
+      "binance_tr_price_step_size": 1e-07,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SIGN",
+      "binance_tr_symbol": "SIGN_TRY",
+      "binance_futures_symbol": "SIGNUSDT",
+      "CS_instrument_id": 8502,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SKL",
+      "binance_tr_symbol": "SKL_TRY",
+      "binance_futures_symbol": "SKLUSDT",
+      "CS_instrument_id": 8000,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SKY",
+      "binance_tr_symbol": "SKY_TRY",
+      "binance_futures_symbol": "SKYUSDT",
+      "CS_instrument_id": 8606,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SLP",
+      "binance_tr_symbol": "SLP_TRY",
+      "binance_futures_symbol": "SLPUSDT",
+      "CS_instrument_id": 8569,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SNX",
+      "binance_tr_symbol": "SNX_TRY",
+      "binance_futures_symbol": "SNXUSDT",
+      "CS_instrument_id": 72325,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SOL",
+      "binance_tr_symbol": "SOL_TRY",
+      "binance_futures_symbol": "SOLUSDT",
+      "CS_instrument_id": 72842,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "SOLV",
+      "binance_tr_symbol": "SOLV_TRY",
+      "binance_futures_symbol": "SOLVUSDT",
+      "CS_instrument_id": 8433,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SOMI",
+      "binance_tr_symbol": "SOMI_TRY",
+      "binance_futures_symbol": "SOMIUSDT",
+      "CS_instrument_id": 8593,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SOPH",
+      "binance_tr_symbol": "SOPH_TRY",
+      "binance_futures_symbol": "SOPHUSDT",
+      "CS_instrument_id": 8527,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SPELL",
+      "binance_tr_symbol": "SPELL_TRY",
+      "binance_futures_symbol": "SPELLUSDT",
+      "CS_instrument_id": 8128,
+      "binance_tr_price_precision": 5,
+      "binance_tr_price_step_size": 1e-05,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SPK",
+      "binance_tr_symbol": "SPK_TRY",
+      "binance_futures_symbol": "SPKUSDT",
+      "CS_instrument_id": 8543,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "STO",
+      "binance_tr_symbol": "STO_TRY",
+      "binance_futures_symbol": "STOUSDT",
+      "CS_instrument_id": 8489,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "STORJ",
+      "binance_tr_symbol": "STORJ_TRY",
+      "binance_futures_symbol": "STORJUSDT",
+      "CS_instrument_id": 72934,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "STRK",
+      "binance_tr_symbol": "STRK_TRY",
+      "binance_futures_symbol": "STRKUSDT",
+      "CS_instrument_id": 8277,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "STX",
+      "binance_tr_symbol": "STX_TRY",
+      "binance_futures_symbol": "STXUSDT",
+      "CS_instrument_id": 8158,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SUI",
+      "binance_tr_symbol": "SUI_TRY",
+      "binance_futures_symbol": "SUIUSDT",
+      "CS_instrument_id": 8182,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SUN",
+      "binance_tr_symbol": "SUN_TRY",
+      "binance_futures_symbol": "SUNUSDT",
+      "CS_instrument_id": 8337,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "SUPER",
+      "binance_tr_symbol": "SUPER_TRY",
+      "binance_futures_symbol": "SUPERUSDT",
+      "CS_instrument_id": 8243,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SUSHI",
+      "binance_tr_symbol": "SUSHI_TRY",
+      "binance_futures_symbol": "SUSHIUSDT",
+      "CS_instrument_id": 72665,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SXT",
+      "binance_tr_symbol": "SXT_TRY",
+      "binance_futures_symbol": "SXTUSDT",
+      "CS_instrument_id": 8508,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "SYRUP",
+      "binance_tr_symbol": "SYRUP_TRY",
+      "binance_futures_symbol": "SYRUPUSDT",
+      "CS_instrument_id": 8513,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "TAO",
+      "binance_tr_symbol": "TAO_TRY",
+      "binance_futures_symbol": "TAOUSDT",
+      "CS_instrument_id": 8304,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 4
+    },
+    {
+      "base_symbol": "THE",
+      "binance_tr_symbol": "THE_TRY",
+      "binance_futures_symbol": "THEUSDT",
+      "CS_instrument_id": 8391,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "THETA",
+      "binance_tr_symbol": "THETA_TRY",
+      "binance_futures_symbol": "THETAUSDT",
+      "CS_instrument_id": 71696,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "TIA",
+      "binance_tr_symbol": "TIA_TRY",
+      "binance_futures_symbol": "TIAUSDT",
+      "CS_instrument_id": 8227,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "TLM",
+      "binance_tr_symbol": "TLM_TRY",
+      "binance_futures_symbol": "TLMUSDT",
+      "CS_instrument_id": 8046,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "TNSR",
+      "binance_tr_symbol": "TNSR_TRY",
+      "binance_futures_symbol": "TNSRUSDT",
+      "CS_instrument_id": 8300,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "TON",
+      "binance_tr_symbol": "TON_TRY",
+      "binance_futures_symbol": "TONUSDT",
+      "CS_instrument_id": 8282,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "TOWNS",
+      "binance_tr_symbol": "TOWNS_TRY",
+      "binance_futures_symbol": "TOWNSUSDT",
+      "CS_instrument_id": 8578,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "TRB",
+      "binance_tr_symbol": "TRB_TRY",
+      "binance_futures_symbol": "TRBUSDT",
+      "CS_instrument_id": 72617,
+      "binance_tr_price_precision": 0,
+      "binance_tr_price_step_size": 1.0,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "TREE",
+      "binance_tr_symbol": "TREE_TRY",
+      "binance_futures_symbol": "TREEUSDT",
+      "CS_instrument_id": 8574,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "TRU",
+      "binance_tr_symbol": "TRU_TRY",
+      "binance_futures_symbol": "TRUUSDT",
+      "CS_instrument_id": 8164,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "TRUMP",
+      "binance_tr_symbol": "TRUMP_TRY",
+      "binance_futures_symbol": "TRUMPUSDT",
+      "CS_instrument_id": 8436,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 3
+    },
+    {
+      "base_symbol": "TRX",
+      "binance_tr_symbol": "TRX_TRY",
+      "binance_futures_symbol": "TRXUSDT",
+      "CS_instrument_id": 70854,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "TST",
+      "binance_tr_symbol": "TST_TRY",
+      "binance_futures_symbol": "TSTUSDT",
+      "CS_instrument_id": 8444,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "TURBO",
+      "binance_tr_symbol": "TURBO_TRY",
+      "binance_futures_symbol": "TURBOUSDT",
+      "CS_instrument_id": 8318,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "TURTLE",
+      "binance_tr_symbol": "TURTLE_TRY",
+      "binance_futures_symbol": "TURTLEUSDT",
+      "CS_instrument_id": 8652,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "TWT",
+      "binance_tr_symbol": "TWT_TRY",
+      "binance_futures_symbol": "TWTUSDT",
+      "CS_instrument_id": 8231,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "UMA",
+      "binance_tr_symbol": "UMA_TRY",
+      "binance_futures_symbol": "UMAUSDT",
+      "CS_instrument_id": 8185,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "UNI",
+      "binance_tr_symbol": "UNI_TRY",
+      "binance_futures_symbol": "UNIUSDT",
+      "CS_instrument_id": 72966,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "USDC",
+      "binance_tr_symbol": "USDC_TRY",
+      "binance_futures_symbol": "USDCUSDT",
+      "CS_instrument_id": 8166,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "USTC",
+      "binance_tr_symbol": "USTC_TRY",
+      "binance_futures_symbol": "USTCUSDT",
+      "CS_instrument_id": 8244,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "USUAL",
+      "binance_tr_symbol": "USUAL_TRY",
+      "binance_futures_symbol": "USUALUSDT",
+      "CS_instrument_id": 8411,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "VANA",
+      "binance_tr_symbol": "VANA_TRY",
+      "binance_futures_symbol": "VANAUSDT",
+      "CS_instrument_id": 8408,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "VANRY",
+      "binance_tr_symbol": "VANRY_TRY",
+      "binance_futures_symbol": "VANRYUSDT",
+      "CS_instrument_id": 8289,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "VET",
+      "binance_tr_symbol": "VET_TRY",
+      "binance_futures_symbol": "VETUSDT",
+      "CS_instrument_id": 70960,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "VIC",
+      "binance_tr_symbol": "VIC_TRY",
+      "binance_futures_symbol": "VICUSDT",
+      "CS_instrument_id": 8459,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "VIRTUAL",
+      "binance_tr_symbol": "VIRTUAL_TRY",
+      "binance_futures_symbol": "VIRTUALUSDT",
+      "CS_instrument_id": 8401,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "W",
+      "binance_tr_symbol": "W_TRY",
+      "binance_futures_symbol": "WUSDT",
+      "CS_instrument_id": 8297,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "WAL",
+      "binance_tr_symbol": "WAL_TRY",
+      "binance_futures_symbol": "WALUSDT",
+      "CS_instrument_id": 8477,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "WCT",
+      "binance_tr_symbol": "WCT_TRY",
+      "binance_futures_symbol": "WCTUSDT",
+      "CS_instrument_id": 8492,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "WIF",
+      "binance_tr_symbol": "WIF_TRY",
+      "binance_futures_symbol": "WIFUSDT",
+      "CS_instrument_id": 8264,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "WLD",
+      "binance_tr_symbol": "WLD_TRY",
+      "binance_futures_symbol": "WLDUSDT",
+      "CS_instrument_id": 8195,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "WLFI",
+      "binance_tr_symbol": "WLFI_TRY",
+      "binance_futures_symbol": "WLFIUSDT",
+      "CS_instrument_id": 8591,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "XAI",
+      "binance_tr_symbol": "XAI_TRY",
+      "binance_futures_symbol": "XAIUSDT",
+      "CS_instrument_id": 8262,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "XEC",
+      "binance_tr_symbol": "XEC_TRY",
+      "binance_futures_symbol": "1000XECUSDT",
+      "CS_instrument_id": 8060,
+      "binance_tr_price_precision": 7,
+      "binance_tr_price_step_size": 1e-07,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "XLM",
+      "binance_tr_symbol": "XLM_TRY",
+      "binance_futures_symbol": "XLMUSDT",
+      "CS_instrument_id": 70891,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "XPL",
+      "binance_tr_symbol": "XPL_TRY",
+      "binance_futures_symbol": "XPLUSDT",
+      "CS_instrument_id": 8590,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "XRP",
+      "binance_tr_symbol": "XRP_TRY",
+      "binance_futures_symbol": "XRPUSDT",
+      "CS_instrument_id": 68555,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "XTZ",
+      "binance_tr_symbol": "XTZ_TRY",
+      "binance_futures_symbol": "XTZUSDT",
+      "CS_instrument_id": 70953,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 2
+    },
+    {
+      "base_symbol": "XVG",
+      "binance_tr_symbol": "XVG_TRY",
+      "binance_futures_symbol": "XVGUSDT",
+      "CS_instrument_id": 8194,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 0
+    },
+    {
+      "base_symbol": "YB",
+      "binance_tr_symbol": "YB_TRY",
+      "binance_futures_symbol": "YBUSDT",
+      "CS_instrument_id": 8640,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ZBT",
+      "binance_tr_symbol": "ZBT_TRY",
+      "binance_futures_symbol": "ZBTUSDT",
+      "CS_instrument_id": 8646,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ZIL",
+      "binance_tr_symbol": "ZIL_TRY",
+      "binance_futures_symbol": "ZILUSDT",
+      "CS_instrument_id": 71854,
+      "binance_tr_price_precision": 4,
+      "binance_tr_price_step_size": 0.0001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ZK",
+      "binance_tr_symbol": "ZK_TRY",
+      "binance_futures_symbol": "ZKUSDT",
+      "CS_instrument_id": 8320,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ZKC",
+      "binance_tr_symbol": "ZKC_TRY",
+      "binance_futures_symbol": "ZKCUSDT",
+      "CS_instrument_id": 8611,
+      "binance_tr_price_precision": 2,
+      "binance_tr_price_step_size": 0.01,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ZKP",
+      "binance_tr_symbol": "ZKP_TRY",
+      "binance_futures_symbol": "ZKPUSDT",
+      "CS_instrument_id": 8683,
+      "binance_tr_price_precision": 3,
+      "binance_tr_price_step_size": 0.001,
+      "binance_tr_amount_precision": 1
+    },
+    {
+      "base_symbol": "ZRO",
+      "binance_tr_symbol": "ZRO_TRY",
+      "binance_futures_symbol": "ZROUSDT",
+      "CS_instrument_id": 8323,
+      "binance_tr_price_precision": 1,
+      "binance_tr_price_step_size": 0.1,
+      "binance_tr_amount_precision": 2
+    }
+  ]
+}

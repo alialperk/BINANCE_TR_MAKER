@@ -21,8 +21,9 @@ import aiohttp  # pip install aiohttp
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-HOST_FILE = Path("CS_btcturk_instruments.json")
+HOST_FILE = Path("CS_all_instruments.json")
 HOST_MAPPING_FILE = Path("coin_host_mapping.json")  # Balanced host distribution
+HOST_MAPPING_FILE  = None
 
 ORG        = "Quantix"
 APP_NAME   = "WSClient"

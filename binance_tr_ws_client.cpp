@@ -12,6 +12,7 @@
 #include <openssl/err.h>
 #include <chrono>
 #include <iomanip>
+#include <ctime>
 #include <x86intrin.h>  // For RDTSC
 #include <sched.h>      // For CPU affinity
 #include <sys/syscall.h>
@@ -19,10 +20,13 @@
 #include <vector>
 #include <sstream>
 #include <map>
+#include <set>
 #include <csignal>
 #include <atomic>
 #include <unordered_map>
-#include "binance_orderbook_shared_memory.h"
+#include <unordered_set>
+#include <sys/wait.h>
+#include "binance_tr_orderbook_shared_memory.h"
 
 // HFT OPTIMIZATION: RDTSC for ultra-fast timestamps (CPU cycle counter)
 inline uint64_t rdtsc() {
@@ -103,10 +107,30 @@ inline double fast_atof(const char* str, size_t len) {
 
 // Minimal logging for HFT (disabled in hot path by default)
 static bool enable_logging = true;
+
+// Format timestamp as HH:MM:SS.mmm
+inline std::string format_timestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now.time_since_epoch()) % 1000;
+    
+    std::tm* tm_info = std::localtime(&time_t);
+    if (!tm_info) {
+        return "[ERROR]";
+    }
+    
+    char buffer[32];
+    std::snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d.%03lld",
+                  tm_info->tm_hour, tm_info->tm_min, tm_info->tm_sec,
+                  static_cast<long long>(ms.count()));
+    return std::string(buffer);
+}
+
 inline void log_fast(const char* msg) {
     if (!enable_logging) return;
-    auto ns = get_timestamp_ns();
-    std::cout << "[" << ns << "] " << msg << std::endl;
+    std::string timestamp = format_timestamp();
+    std::cout << "[" << timestamp << "] " << msg << std::endl;
 }
 
 // Global flag for graceful shutdown
@@ -225,56 +249,81 @@ std::unordered_map<std::string, size_t> load_symbol_to_index_mapping(const std::
     return mapping;
 }
 
-// Simple JSON parser to extract streams from CS_common_instruments.json
-// Format: [{"base_symbol":"ETH","binance_tr_symbol":"ETHTRY","binance_symbol":"ETHUSDT","binance_tr_stream":"ethtry@depth5@100ms"},...]
-std::vector<std::string> load_instruments_from_json(const std::string& filename) {
+// Simple JSON parser to extract streams from common_symbol_info.json
+// Format: {"symbols":[{"binance_tr_symbol":"ETHTRY",...},...]}
+// Constructs stream name as: {symbol_lowercase}@depth5@100ms
+// Returns both streams and symbols for filtering
+std::pair<std::vector<std::string>, std::vector<std::string>> load_instruments_from_json(const std::string& filename) {
     std::vector<std::string> streams;
+    std::vector<std::string> symbols;
     std::ifstream file(filename);
     if (!file.is_open()) {
         std::string error_msg = "ERROR: Could not open " + filename;
         log_fast(error_msg.c_str());
-        return streams;
+        return {streams, symbols};
     }
     
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     file.close();
     
-    // Simple JSON parsing for new format: look for "binance_tr_stream" field
+    // Simple JSON parsing: look for "binance_tr_symbol" field
     size_t pos = 0;
-    while ((pos = content.find("\"binance_tr_stream\"", pos)) != std::string::npos) {
-        pos += 19; // Skip "binance_tr_stream"
+    while ((pos = content.find("\"binance_tr_symbol\"", pos)) != std::string::npos) {
+        pos += 19; // Skip "binance_tr_symbol"
         // Find the colon
         while (pos < content.length() && (content[pos] == ' ' || content[pos] == ':')) pos++;
         if (pos >= content.length() || content[pos] != '"') continue;
         pos++; // Skip opening quote
-        size_t stream_start = pos;
+        size_t symbol_start = pos;
         // Find closing quote
         while (pos < content.length() && content[pos] != '"') pos++;
         if (pos < content.length()) {
-            std::string stream = content.substr(stream_start, pos - stream_start);
+            std::string symbol = content.substr(symbol_start, pos - symbol_start);
+            symbols.push_back(symbol); // Store original symbol (e.g., "XRP_TRY")
+            
+            // Convert to lowercase, remove underscores, and append "@depth5@100ms" to create stream name
+            // Binance TR uses format like "xrptry@depth5@100ms" (no underscores)
+            std::string stream;
+            stream.reserve(symbol.length());
+            for (char c : symbol) {
+                if (c >= 'A' && c <= 'Z') {
+                    stream += (c - 'A' + 'a');
+                } else if (c != '_') {
+                    stream += c;
+                }
+                // Skip underscores
+            }
+            stream += "@depth5@100ms";
             streams.push_back(stream);
         }
         pos++;
     }
     
-    return streams;
+    return {streams, symbols};
 }
 
-// Structure to store symbol data for table display
+// Structure to store symbol data for table display (only top bid/ask prices)
 struct SymbolData {
     double ask_price;
-    double ask_qty;
     double bid_price;
-    double bid_qty;
-    double spread;
-    double spread_pct;
 };
 
 // Global symbol data map (shared between process_depth and main)
-static std::map<std::string, SymbolData> g_symbol_data;
+// Use unordered_map for O(1) lookups instead of O(log n) for map
+static std::unordered_map<std::string, SymbolData> g_symbol_data;
 
 // Shared memory manager
-static BinanceOrderbookSharedMemoryManager* g_shm_manager = nullptr;
+static BinanceTROrderbookSharedMemoryManager* g_shm_manager = nullptr;
+
+// Global stream name(s) for fallback symbol extraction
+static std::vector<std::string> g_active_streams;
+
+// Global symbol filter: only process symbols in assigned range
+static std::unordered_set<std::string> g_assigned_symbols;
+static int g_core_id = 0;
+
+// Global message counter
+static std::atomic<uint64_t> g_message_count(0);
 
 // Extract symbol from depth message - Binance TR format
 // Combined stream format: {"stream":"ethtry@depth5@100ms","data":{"e":"depthUpdate","s":"ETHTRY",...}}
@@ -337,8 +386,9 @@ std::string extract_symbol(const char* data, size_t len) {
             const char* symbol_end = (const char*)memchr(symbol_start, '"', data_end - symbol_start);
             if (symbol_end) {
                 std::string symbol = std::string(symbol_start, symbol_end - symbol_start);
-                // Prefer symbol from stream name if available (more reliable)
-                return symbol_from_stream.empty() ? symbol : symbol_from_stream;
+                // Prefer symbol from "s" field (more accurate than stream name)
+                // Stream name might be lowercase (e.g., "0g_try") but symbol is uppercase (e.g., "0G_TRY")
+                return symbol;
             }
         }
     }
@@ -348,12 +398,28 @@ std::string extract_symbol(const char* data, size_t len) {
         return symbol_from_stream;
     }
     
+    // Final fallback: extract from global active streams (for raw stream format)
+    if (!g_active_streams.empty()) {
+        // Use first stream (for single stream subscriptions)
+        std::string stream = g_active_streams[0];
+        size_t at_pos = stream.find('@');
+        if (at_pos != std::string::npos) {
+            std::string fallback_symbol = stream.substr(0, at_pos);
+            // Convert to uppercase
+            for (char& c : fallback_symbol) {
+                if (c >= 'a' && c <= 'z') c = c - 'a' + 'A';
+            }
+            return fallback_symbol;
+        }
+    }
+    
     return "UNKNOWN";
 }
 
 // Process depth5 orderbook - ZERO COPY, ZERO ALLOCATION for HFT
 __attribute__((always_inline))
 inline void process_depth(const char* data, size_t len, uint64_t /* recv_time */, const std::string& symbol = "") {
+    g_message_count++; // Increment message counter
     // For combined streams, extract the actual data payload
     const char* actual_data = data;
     size_t actual_len = len;
@@ -390,11 +456,58 @@ inline void process_depth(const char* data, size_t len, uint64_t /* recv_time */
     bool is_update = (fast_strstr(actual_data, actual_len, depth_marker, depth_marker_len) != nullptr);
     
     if (!is_snapshot && !is_update) {
-        return; // Not a depth message, skip
+            return; // Not a depth message, skip
     }
     
     // Extract symbol from message if not provided (use original data for symbol extraction)
     std::string msg_symbol = symbol.empty() ? extract_symbol(data, len) : symbol;
+    
+    // Skip if symbol is UNKNOWN (don't store invalid data)
+    if (msg_symbol == "UNKNOWN") {
+        return;
+    }
+    
+    // Normalize symbol for comparison (remove underscores to match JSON format)
+    // JSON has "XRP_TRY" but messages have "XRPTRY", so we need to normalize
+    std::string normalized_symbol = msg_symbol;
+    std::string normalized_msg_symbol;
+    normalized_msg_symbol.reserve(normalized_symbol.length());
+    for (char c : normalized_symbol) {
+        if (c != '_') {
+            normalized_msg_symbol += c;
+        }
+    }
+    
+    // Check if this symbol (or its normalized version) is in assigned set
+    bool is_assigned = false;
+    if (!g_assigned_symbols.empty()) {
+        // First try exact match
+        if (g_assigned_symbols.find(msg_symbol) != g_assigned_symbols.end()) {
+            is_assigned = true;
+        } else {
+            // Try normalized match - check if any assigned symbol matches when normalized
+            for (const auto& assigned_sym : g_assigned_symbols) {
+                std::string normalized_assigned;
+                normalized_assigned.reserve(assigned_sym.length());
+                for (char c : assigned_sym) {
+                    if (c != '_') {
+                        normalized_assigned += c;
+                    }
+                }
+                if (normalized_assigned == normalized_msg_symbol) {
+                    is_assigned = true;
+                    break;
+                }
+            }
+        }
+    } else {
+        // If no assigned symbols set, process all (backward compatibility)
+        is_assigned = true;
+    }
+    
+    if (!is_assigned) {
+        return; // This symbol is handled by another core
+    }
     
     // Parse bids array: "bids":[[price,qty],[price,qty],...]
     // Find "bids":[[ or "b":[[ (use actual_data for combined streams)
@@ -425,195 +538,238 @@ inline void process_depth(const char* data, size_t len, uint64_t /* recv_time */
         ask_array_start += ask_marker_len; // Points to after [[
     }
     
-    // Parse up to 5 levels of bids and asks
-    struct Level {
-        double price;
-        double qty;
-        Level() : price(0.0), qty(0.0) {}
-    };
-    Level bids[5];
-    Level asks[5];
-    int bid_count = 0;
-    int ask_count = 0;
+    // Parse only top bid and top ask prices (skip quantities)
+    // Format: "bids":[["price","qty"],...] or "b":[["price","qty"],...]
+    double top_bid_price = 0.0;
+    double top_ask_price = 0.0;
+    bool has_bid = false;
+    bool has_ask = false;
     
-    // Parse bids (up to 5 levels)
-    // After "bids":[[, we're at position right after [[, which should be " for first price
+    // Parse top bid price (first entry in bids array)
     const char* pos = bid_array_start;
     const char* data_end = actual_data + actual_len;
-    while (bid_count < 5 && pos < data_end) {
-        // Skip whitespace
-        while (pos < data_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        if (pos >= data_end) break;
-        if (*pos == ']') break; // End of array
-        
-        // Each entry is ["price","qty"] - we need to find the opening [
+    
+    // Skip whitespace
+    while (pos < data_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
+    if (pos < data_end && *pos != ']') {
+        // Find opening [
         if (*pos != '[') {
-            // Look for next [
             const char* next_bracket = (const char*)memchr(pos, '[', data_end - pos);
-            if (!next_bracket) break;
-            pos = next_bracket;
+            if (next_bracket) pos = next_bracket;
         }
-        pos++; // Skip [
-        
-        // Skip whitespace
-        while (pos < data_end && (*pos == ' ' || *pos == '\t')) pos++;
-        if (pos >= data_end || *pos != '"') break;
-        pos++; // Skip quote
-        
-        // Parse price
-        const char* price_start = pos;
-        const char* price_end = (const char*)memchr(price_start, '"', data_end - price_start);
-        if (!price_end) break;
-        bids[bid_count].price = fast_atof(price_start, price_end - price_start);
-        pos = price_end + 1;
-        
-        // Skip whitespace, comma
-        while (pos < data_end && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
-        if (pos >= data_end || *pos != '"') break;
-        pos++; // Skip quote
-        
-        // Parse quantity
-        const char* qty_start = pos;
-        const char* qty_end = (const char*)memchr(qty_start, '"', data_end - qty_start);
-        if (!qty_end) break;
-        bids[bid_count].qty = fast_atof(qty_start, qty_end - qty_start);
-        pos = qty_end + 1;
-        
-        bid_count++;
-        
-        // Skip ], whitespace to next entry
-        while (pos < data_end && (*pos == ' ' || *pos == ']' || *pos == ',' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        if (pos >= data_end || *pos == ']') break;
+        if (pos < data_end && *pos == '[') {
+            pos++; // Skip [
+            // Skip whitespace
+            while (pos < data_end && (*pos == ' ' || *pos == '\t')) pos++;
+            if (pos < data_end && *pos == '"') {
+                pos++; // Skip quote
+                // Parse price
+                const char* price_start = pos;
+                const char* price_end = (const char*)memchr(price_start, '"', data_end - price_start);
+                if (price_end) {
+                    top_bid_price = fast_atof(price_start, price_end - price_start);
+                    has_bid = true;
+                }
+            }
+        }
     }
     
-    // Parse asks (up to 5 levels) - same logic as bids
+    // Parse top ask price (first entry in asks array)
     pos = ask_array_start;
-    data_end = actual_data + actual_len; // Reset for asks parsing
-    while (ask_count < 5 && pos < data_end) {
-        // Skip whitespace
-        while (pos < data_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        if (pos >= data_end) break;
-        if (*pos == ']') break;
-        
-        // Each entry is ["price","qty"]
+    data_end = actual_data + actual_len; // Reset for asks
+    
+    // Skip whitespace
+    while (pos < data_end && (*pos == ' ' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
+    if (pos < data_end && *pos != ']') {
+        // Find opening [
         if (*pos != '[') {
             const char* next_bracket = (const char*)memchr(pos, '[', data_end - pos);
-            if (!next_bracket) break;
-            pos = next_bracket;
+            if (next_bracket) pos = next_bracket;
         }
-        pos++; // Skip [
-        
-        // Skip whitespace
-        while (pos < data_end && (*pos == ' ' || *pos == '\t')) pos++;
-        if (pos >= data_end || *pos != '"') break;
-        pos++; // Skip quote
-        
-        // Parse price
-        const char* price_start = pos;
-        const char* price_end = (const char*)memchr(price_start, '"', data_end - price_start);
-        if (!price_end) break;
-        asks[ask_count].price = fast_atof(price_start, price_end - price_start);
-        pos = price_end + 1;
-        
-        // Skip whitespace, comma
-        while (pos < data_end && (*pos == ' ' || *pos == ',' || *pos == '\t')) pos++;
-        if (pos >= data_end || *pos != '"') break;
-        pos++; // Skip quote
-        
-        // Parse quantity
-        const char* qty_start = pos;
-        const char* qty_end = (const char*)memchr(qty_start, '"', data_end - qty_start);
-        if (!qty_end) break;
-        asks[ask_count].qty = fast_atof(qty_start, qty_end - qty_start);
-        pos = qty_end + 1;
-        
-        ask_count++;
-        
-        // Skip ], whitespace to next entry
-        while (pos < data_end && (*pos == ' ' || *pos == ']' || *pos == ',' || *pos == '\t' || *pos == '\n' || *pos == '\r')) pos++;
-        if (pos >= data_end || *pos == ']') break;
+        if (pos < data_end && *pos == '[') {
+            pos++; // Skip [
+            // Skip whitespace
+            while (pos < data_end && (*pos == ' ' || *pos == '\t')) pos++;
+            if (pos < data_end && *pos == '"') {
+                pos++; // Skip quote
+                // Parse price
+                const char* price_start = pos;
+                const char* price_end = (const char*)memchr(price_start, '"', data_end - price_start);
+                if (price_end) {
+                    top_ask_price = fast_atof(price_start, price_end - price_start);
+                    has_ask = true;
+                }
+            }
+        }
     }
     
-    // Only log if we successfully parsed at least one level
-    if (bid_count == 0 && ask_count == 0) {
+    // Only process if we have at least one price
+    if (!has_bid && !has_ask) {
         return; // Parsing failed, skip
     }
     
-    // Calculate spread
-    double spread = 0.0;
-    double spread_pct = 0.0;
-    if (bid_count > 0 && ask_count > 0) {
-        spread = asks[0].price - bids[0].price;
-        spread_pct = (spread / bids[0].price) * 100.0;
-    }
-    
-    // Update data for this symbol in global map
+    // Update data for this symbol in global map (only prices, no quantities or spread)
     g_symbol_data[msg_symbol] = {
-        ask_count > 0 ? asks[0].price : 0.0,
-        ask_count > 0 ? asks[0].qty : 0.0,
-        bid_count > 0 ? bids[0].price : 0.0,
-        bid_count > 0 ? bids[0].qty : 0.0,
-        spread,
-        spread_pct
+        top_ask_price,
+        top_bid_price
     };
     
-    // Update shared memory if available
-    if (g_shm_manager && bid_count > 0 && ask_count > 0) {
+    // Update shared memory if available (pass 0.0 for quantities since we don't need them)
+    if (g_shm_manager && has_bid && has_ask) {
         int64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        g_shm_manager->update_orderbook(msg_symbol, asks[0].price, asks[0].qty,
-                                       bids[0].price, bids[0].qty, timestamp);
+        g_shm_manager->update_orderbook(msg_symbol, top_ask_price, 0.0,
+                                       top_bid_price, 0.0, timestamp);
     }
     
     // Don't print here - will be printed every 5 seconds in main loop
 }
 
-// Function to print the table (called every 5 seconds)
-void print_table(const std::map<std::string, SymbolData>& symbol_data, int update_count) {
-    char output[2048];
-    int written = snprintf(output, sizeof(output), 
-        "\033[2J\033[H"  // Clear screen and move cursor to top
-        "═══════════════════════════════════════════════════════════════════════════════\n"
-        "  BINANCE TR - TOP OF BOOK (Update #%d)\n"
-        "═══════════════════════════════════════════════════════════════════════════════\n"
-        "  Symbol    │  Best Ask Price  │  Best Ask Qty   │  Best Bid Price  │  Best Bid Qty   │  Spread      │  Spread %%\n"
-        "────────────┼─────────────────┼─────────────────┼─────────────────┼─────────────────┼──────────────┼───────────\n",
-        update_count);
-    ssize_t result = write(STDOUT_FILENO, output, written);
-    (void)result; // Explicitly ignore return value
+// Function to log message count and first symbol TOB data (called every 5 seconds)
+void log_core_stats(const std::unordered_map<std::string, SymbolData>& symbol_data, int update_count) {
+    enable_logging = true;
     
-    // Print all symbols in table
-    for (const auto& pair : symbol_data) {
-        written = snprintf(output, sizeof(output),
-            "  %-10s │  %15.2f │  %15.8f │  %15.2f │  %15.8f │  %12.2f │  %8.4f%%\n",
-            pair.first.c_str(),
-            pair.second.ask_price,
-            pair.second.ask_qty,
-            pair.second.bid_price,
-            pair.second.bid_qty,
-            pair.second.spread,
-            pair.second.spread_pct);
-        result = write(STDOUT_FILENO, output, written);
-        (void)result; // Explicitly ignore return value
+    uint64_t msg_count = g_message_count.load();
+    
+    if (symbol_data.empty()) {
+        char log_msg[256];
+        snprintf(log_msg, sizeof(log_msg), 
+            "[Core %d | Update #%d] Messages: %llu | No symbols received yet",
+            g_core_id, update_count, (unsigned long long)msg_count);
+        log_fast(log_msg);
+    } else {
+        // Get first symbol
+        auto first_it = symbol_data.begin();
+        char log_msg[512];
+        snprintf(log_msg, sizeof(log_msg), 
+            "[Core %d | Update #%d] Messages: %llu | First Symbol: %s (Ask: %.2f, Bid: %.2f) | Total Symbols: %zu",
+            g_core_id, update_count, (unsigned long long)msg_count,
+            first_it->first.c_str(),
+            first_it->second.ask_price,
+            first_it->second.bid_price,
+            symbol_data.size());
+        log_fast(log_msg);
     }
     
-    written = snprintf(output, sizeof(output), 
-        "═══════════════════════════════════════════════════════════════════════════════\n");
-    result = write(STDOUT_FILENO, output, written);
-    (void)result; // Explicitly ignore return value
+    enable_logging = false;
 }
 
-int main() {
+// Function to run a single core client
+int run_core_client(int core_id, int start_index, int end_index);
+
+int main(int argc, char* argv[]) {
+    // If no arguments, spawn 10 processes (one per core)
+    if (argc == 1) {
+        // Generate symbol mapping if needed
+        int sys_ret = system("python3 -c \"import json; d=json.load(open('common_symbol_info.json')); m={s.get('binance_tr_symbol'):i for i,s in enumerate(d.get('symbols',[])) if s.get('binance_tr_symbol')}; json.dump({'symbol_to_index':m}, open('binance_tr_symbol_mapping.json','w'), indent=2)\" 2>/dev/null");
+        (void)sys_ret; // Ignore return value intentionally
+        
+        // Count total symbols
+        int total_symbols = 0;
+        FILE* fp = popen("python3 -c \"import json; d=json.load(open('common_symbol_info.json')); print(len([s for s in d.get('symbols',[]) if s.get('binance_tr_symbol')]))\" 2>/dev/null", "r");
+        if (fp) {
+            int scan_ret = fscanf(fp, "%d", &total_symbols);
+            (void)scan_ret; // Ignore return value intentionally
+            pclose(fp);
+        }
+        
+        if (total_symbols == 0) {
+            std::cerr << "ERROR: Could not count symbols. Make sure common_symbol_info.json exists." << std::endl;
+            return 1;
+        }
+        
+        int symbols_per_core = total_symbols / 10;
+        int remainder = total_symbols % 10;
+        
+        std::vector<pid_t> child_pids;
+        
+        // Spawn 10 child processes
+        for (int core_id = 0; core_id < 10; core_id++) {
+            int start_idx = core_id * symbols_per_core;
+            if (core_id < remainder) {
+                start_idx += core_id;
+            } else {
+                start_idx += remainder;
+            }
+            int end_idx = start_idx + symbols_per_core - 1;
+            if (core_id < remainder) {
+                end_idx++;
+            }
+            
+            pid_t pid = fork();
+            if (pid == 0) {
+                // Child process - run the core client
+                return run_core_client(core_id, start_idx, end_idx);
+            } else if (pid > 0) {
+                // Parent process - store child PID
+                child_pids.push_back(pid);
+                std::cout << "[MAIN] Spawned Core " << core_id << " (PID: " << pid << ", symbols " << start_idx << "-" << end_idx << ")" << std::endl;
+            } else {
+                std::cerr << "ERROR: Failed to fork process for Core " << core_id << std::endl;
+            }
+            usleep(100000); // 100ms delay between spawns
+        }
+        
+        // Parent process: wait for all children
+        std::cout << "[MAIN] All 10 cores launched. Waiting for children..." << std::endl;
+        std::cout << "[MAIN] Press Ctrl+C to stop all clients" << std::endl;
+        
+        // Set up signal handler to kill all children
+        signal(SIGINT, [](int /* sig */) {
+            std::cout << "\n[MAIN] Received SIGINT, killing all child processes..." << std::endl;
+            int sys_ret = system("pkill -P $$ binance_tr_ws_client 2>/dev/null");
+            (void)sys_ret; // Ignore return value intentionally
+            exit(0);
+        });
+        
+        // Wait for all children
+        int status;
+        for (pid_t pid : child_pids) {
+            waitpid(pid, &status, 0);
+        }
+        
+        return 0;
+    }
+    
+    // Parse command-line arguments: core_id [start_index] [end_index]
+    int core_id = 0;
+    int start_index = -1;
+    int end_index = -1;
+    
+    if (argc >= 2) {
+        core_id = atoi(argv[1]);
+        if (core_id < 0 || core_id > 9) {
+            std::cerr << "ERROR: core_id must be between 0 and 9" << std::endl;
+            return 1;
+        }
+    }
+    if (argc >= 3) {
+        start_index = atoi(argv[2]);
+    }
+    if (argc >= 4) {
+        end_index = atoi(argv[3]);
+    }
+    
+    return run_core_client(core_id, start_index, end_index);
+}
+
+// Function to run a single core client
+int run_core_client(int core_id, int start_index, int end_index) {
+    g_core_id = core_id;
+    
     // Register signal handler for Ctrl+C
     signal(SIGINT, signal_handler);
     
-    // HFT OPTIMIZATION: Pin to CPU core 0 (adjust based on your system)
-    set_cpu_affinity(0);
+    // HFT OPTIMIZATION: Pin to specified CPU core
+    set_cpu_affinity(core_id);
     
     // HFT OPTIMIZATION: Calibrate RDTSC for fast timestamps
     calibrate_rdtsc();
     
-    log_fast("=== ULTRA-LOW LATENCY HFT CLIENT (OPTIMIZED) ===");
+    enable_logging = true;
+    char init_msg[256];
+    snprintf(init_msg, sizeof(init_msg), "=== ULTRA-LOW LATENCY HFT CLIENT (CORE %d) ===", core_id);
+    log_fast(init_msg);
     log_fast("Press Ctrl+C to stop gracefully");
     
     // Initialize OpenSSL
@@ -688,7 +844,7 @@ int main() {
     // Load symbol-to-index mapping for shared memory
     std::unordered_map<std::string, size_t> symbol_to_index = load_symbol_to_index_mapping("binance_tr_symbol_mapping.json");
     if (!symbol_to_index.empty()) {
-        g_shm_manager = new BinanceOrderbookSharedMemoryManager(SHM_NAME_BINANCE_TR);
+        g_shm_manager = new BinanceTROrderbookSharedMemoryManager(SHM_NAME_BINANCE_TR);
         if (g_shm_manager->initialize(symbol_to_index)) {
             char log_msg[512];
             snprintf(log_msg, sizeof(log_msg), "Shared memory initialized with %zu symbol(s)", symbol_to_index.size());
@@ -703,16 +859,44 @@ int main() {
     }
     
     // Load instruments from JSON file
-    std::vector<std::string> streams = load_instruments_from_json("CS_common_instruments.json");
-    if (streams.empty()) {
-        log_fast("ERROR: No streams found in CS_common_instruments.json");
+    auto [all_streams, all_symbols] = load_instruments_from_json("common_symbol_info.json");
+    std::vector<std::string> streams;
+    std::vector<std::string> assigned_symbols_list;
+    
+    if (all_streams.empty()) {
+        log_fast("ERROR: No streams found in common_symbol_info.json");
         log_fast("Falling back to default: btctry@depth5@100ms");
         streams.push_back("btctry@depth5@100ms");
+        assigned_symbols_list.push_back("BTC_TRY");
     } else {
-        char log_msg[512];
-        snprintf(log_msg, sizeof(log_msg), "Loaded %zu stream(s) from CS_common_instruments.json", streams.size());
-        log_fast(log_msg);
+        // Filter symbols based on start_index and end_index
+        if (start_index >= 0 && end_index >= 0 && start_index <= end_index) {
+            // Load only assigned range
+            for (int i = start_index; i <= end_index && i < (int)all_symbols.size(); i++) {
+                streams.push_back(all_streams[i]);
+                assigned_symbols_list.push_back(all_symbols[i]);
+                g_assigned_symbols.insert(all_symbols[i]);
+            }
+            char log_msg[512];
+            snprintf(log_msg, sizeof(log_msg), 
+                     "Core %d: Loaded %zu stream(s) from common_symbol_info.json (indices %d-%d)",
+                     core_id, streams.size(), start_index, end_index);
+            log_fast(log_msg);
+        } else {
+            // Load all symbols (backward compatibility)
+            streams = all_streams;
+            assigned_symbols_list = all_symbols;
+            for (const auto& sym : all_symbols) {
+                g_assigned_symbols.insert(sym);
+            }
+            char log_msg[512];
+            snprintf(log_msg, sizeof(log_msg), "Loaded %zu stream(s) from common_symbol_info.json", streams.size());
+            log_fast(log_msg);
+        }
     }
+    
+    // Store active streams globally for fallback symbol extraction
+    g_active_streams = streams;
     
     // Build WebSocket URL with all streams using combined stream format
     // Format: /stream?streams=stream1/stream2/stream3
@@ -930,11 +1114,11 @@ int main() {
                 
                 offset += frame_size;
                 
-                // Check if it's time to print table (every 5 seconds)
+                // Check if it's time to log core stats (every 5 seconds)
                 uint64_t now = get_timestamp_ns();
                 if (now - last_print_time >= PRINT_INTERVAL_NS) {
                     update_count++;
-                    print_table(g_symbol_data, update_count);
+                    log_core_stats(g_symbol_data, update_count);
                     last_print_time = now;
                 }
             } else {
@@ -1014,11 +1198,11 @@ int main() {
             }
         }
         
-        // Check if it's time to print table (every 5 seconds) - also check here for cases with no new data
+        // Check if it's time to log core stats (every 5 seconds) - also check here for cases with no new data
         uint64_t now = get_timestamp_ns();
         if (now - last_print_time >= PRINT_INTERVAL_NS) {
             update_count++;
-            print_table(g_symbol_data, update_count);
+            log_core_stats(g_symbol_data, update_count);
             last_print_time = now;
         }
     }

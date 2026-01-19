@@ -11616,6 +11616,54 @@
     ]
   },
   {
+    "instrument_id": 8693,
+    "type": "perpetual",
+    "code": "FRAXUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8694,
+    "type": "perpetual",
+    "code": "SPORTFUNUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
     "instrument_id": 67824,
     "type": "perpetual",
     "code": "BTCUSDT",

@@ -1,7 +1,7 @@
 """
-Python module to read Binance TR orderbook data from shared memory (written by C++ WebSocket client).
+Python module to read EXCHANGE orderbook data from shared memory (written by C++ WebSocket client).
 This is optimized for ultra-low latency by using direct memory access.
-Reads from /binance_tr_orderbook_shm shared memory.
+Reads from /EXCHANGE_orderbook_shm shared memory.
 """
 
 import mmap
@@ -15,13 +15,13 @@ import logging
 
 # Try to import Cython-optimized function (optional optimization)
 try:
-    from binance_tr_shared_memory_reader_optimized import read_updates_optimized  # type: ignore
+    from EXCHANGE_shared_memory_reader_optimized import read_updates_optimized  # type: ignore
     USE_CYTHON_OPTIMIZATION = True
 except ImportError:
     USE_CYTHON_OPTIMIZATION = False
     read_updates_optimized = None
 
-# C structure definitions (must match binance_tr_orderbook_shared_memory.h exactly)
+# C structure definitions (must match EXCHANGE_orderbook_shared_memory.h exactly)
 class OrderbookEntry(ctypes.Structure):
     _fields_ = [
         ("ask_price", ctypes.c_double),
@@ -34,7 +34,7 @@ class OrderbookEntry(ctypes.Structure):
         ("padding", ctypes.c_uint8 * 12),
     ]
 
-class BinanceTROrderbookSharedMemory(ctypes.Structure):
+class EXCHANGEOrderbookSharedMemory(ctypes.Structure):
     _fields_ = [
         ("magic", ctypes.c_uint32),
         ("version", ctypes.c_uint32),
@@ -43,10 +43,13 @@ class BinanceTROrderbookSharedMemory(ctypes.Structure):
         ("entries", OrderbookEntry * 300),  # MAX_SYMBOLS = 300
     ]
 
-class BinanceTRSharedMemoryReader:
-    """Reads Binance TR orderbook data from shared memory."""
+# Backward compatibility alias
+BinanceTROrderbookSharedMemory = EXCHANGEOrderbookSharedMemory
+
+class EXCHANGESharedMemoryReader:
+    """Reads EXCHANGE orderbook data from shared memory."""
     
-    def __init__(self, shm_name: str = "/binance_tr_orderbook_shm", shm_size: int = 1024 * 1024):
+    def __init__(self, shm_name: str = "/EXCHANGE_orderbook_shm", shm_size: int = 1024 * 1024):
         self.shm_name = shm_name
         self.shm_size = shm_size
         self.shm_fd = None
@@ -314,6 +317,12 @@ class BinanceTRSharedMemoryReader:
         # Read all entries (up to num_symbols)
         num_symbols = min(self.shm_data.num_symbols, 300)  # MAX_SYMBOLS
         
+        # Log warning if num_symbols is 0 (C++ client not writing data)
+        if num_symbols == 0 and not hasattr(self, '_zero_symbols_warned'):
+            logging.warning("EXCHANGE shared memory has num_symbols=0. C++ client may not be running or not receiving data.")
+            logging.warning("Please ensure EXCHANGE_ws_client (binance_tr_ws_client) is running and connected.")
+            self._zero_symbols_warned = True
+        
         for i in range(num_symbols):
             entry = self.shm_data.entries[i]
             
@@ -363,12 +372,12 @@ class BinanceTRSharedMemoryReader:
         
         if not self._debug_logged_once and updates_processed > 0:
             # Build detailed debug message with prices (only once)
-            debug_lines = [f"Binance TR shared memory read: num_symbols={num_symbols}, updates_processed={updates_processed}"]
+            debug_lines = [f"✓ Binance TR shared memory read: num_symbols={num_symbols}, updates_processed={updates_processed}"]
             if skipped_indices:
                 debug_lines.append(f"  Skipped indices (not in this script's mapping): {skipped_indices[:10]}...")
             
             if sample_updates:
-                debug_lines.append("  Sample prices from shared memory:")
+                debug_lines.append("  ✓ Sample prices from shared memory (verifying write/read cycle):")
                 for local_symbol_idx, ask_price, bid_price in sample_updates[:5]:
                     symbol_name = "?"
                     try:
@@ -382,12 +391,48 @@ class BinanceTRSharedMemoryReader:
                     try:
                         table_ask = arbitrage_table_np[local_symbol_idx, col_ask_price]
                         table_bid = arbitrage_table_np[local_symbol_idx, col_bid_price]
-                        debug_lines.append(f"    {symbol_name} (idx={local_symbol_idx}): shm_ask={ask_price:.8f}, shm_bid={bid_price:.8f}, table_ask={table_ask:.8f}, table_bid={table_bid:.8f}")
+                        # Verify the write/read cycle is working
+                        ask_match = abs(table_ask - ask_price) < 0.0001
+                        bid_match = abs(table_bid - bid_price) < 0.0001
+                        match_status = "✓" if (ask_match and bid_match) else "✗"
+                        debug_lines.append(f"    {match_status} {symbol_name} (idx={local_symbol_idx}): "
+                                          f"shm_ask={ask_price:.8f}, shm_bid={bid_price:.8f}, "
+                                          f"table_ask={table_ask:.8f}, table_bid={table_bid:.8f}")
                     except:
-                        debug_lines.append(f"    {symbol_name} (idx={local_symbol_idx}): ask={ask_price:.8f}, bid={bid_price:.8f}")
+                        debug_lines.append(f"    ? {symbol_name} (idx={local_symbol_idx}): ask={ask_price:.8f}, bid={bid_price:.8f}")
             
             logging.info("\n".join(debug_lines))
             self._debug_logged_once = True
+        
+        # Periodic verification logging (every 100 reads)
+        if not hasattr(self, '_read_count'):
+            self._read_count = 0
+        self._read_count += 1
+        
+        if self._read_count % 100 == 0 and updates_processed > 0:
+            # Verify data integrity by checking a few random entries
+            verification_samples = []
+            for i in range(min(num_symbols, 5)):
+                entry = self.shm_data.entries[i]
+                if entry.timestamp > 0:
+                    symbol_str = entry.symbol.decode('utf-8', errors='ignore').rstrip('\x00')
+                    if symbol_str in symbol_index_map:
+                        local_idx = symbol_index_map[symbol_str]
+                        if local_idx < arbitrage_table_np.shape[0]:
+                            shm_ask = entry.ask_price
+                            shm_bid = entry.bid_price
+                            table_ask = arbitrage_table_np[local_idx, col_ask_price]
+                            table_bid = arbitrage_table_np[local_idx, col_bid_price]
+                            ask_match = abs(table_ask - shm_ask) < 0.0001
+                            bid_match = abs(table_bid - shm_bid) < 0.0001
+                            verification_samples.append((symbol_str, ask_match and bid_match))
+            
+            if verification_samples:
+                all_match = all(match for _, match in verification_samples)
+                status = "✓" if all_match else "⚠"
+                logging.info(f"{status} Shared memory verification (read #{self._read_count}): "
+                           f"{sum(1 for _, m in verification_samples if m)}/{len(verification_samples)} samples match "
+                           f"(C++ write → Python read cycle working)")
         
         return updates_processed
     
@@ -402,8 +447,9 @@ class BinanceTRSharedMemoryReader:
             'num_symbols': self.shm_data.num_symbols,
         }
 
-# Backward compatibility alias
-BinTROrderbookReader = BinanceTRSharedMemoryReader
+# Backward compatibility aliases
+BinTROrderbookReader = EXCHANGESharedMemoryReader
+EXCHANGEOrderbookReader = EXCHANGESharedMemoryReader
 
 # Global variable to store the active reader
 _global_binance_tr_reader = None
@@ -432,7 +478,7 @@ async def run_bintr_shared_memory_reader(arbitrage_table_np: np.ndarray,
         col_time_diff: Optional column index for Binance TR time diff
     """
     # Create reader
-    reader = BinanceTRSharedMemoryReader(shm_name="/binance_tr_orderbook_shm")
+    reader = EXCHANGESharedMemoryReader(shm_name="/binance_tr_orderbook_shm")
     logging.info("Created Binance TR shared memory reader")
     
     # Connect
@@ -474,8 +520,13 @@ async def run_bintr_shared_memory_reader(arbitrage_table_np: np.ndarray,
             if current_time - last_log_time >= 30.0:
                 stats = reader.get_stats()
                 if stats:
-                    logging.info(f"Binance TR shared memory reader stats: num_symbols={stats.get('num_symbols', 0)}, "
-                                f"updates_last_cycle={total_updates}")
+                    num_symbols_in_shm = stats.get('num_symbols', 0)
+                    if num_symbols_in_shm == 0:
+                        logging.warning(f"Binance TR shared memory reader stats: num_symbols=0, updates_last_cycle={total_updates}")
+                        logging.warning("C++ WebSocket client (EXCHANGE_ws_client/binance_tr_ws_client) may not be running or not writing data!")
+                    else:
+                        logging.info(f"Binance TR shared memory reader stats: num_symbols={num_symbols_in_shm}, "
+                                    f"updates_last_cycle={total_updates}")
                 last_log_time = current_time
     except asyncio.CancelledError:
         logging.info("Binance TR shared memory reader cancelled")
@@ -487,3 +538,6 @@ async def run_bintr_shared_memory_reader(arbitrage_table_np: np.ndarray,
         reader.disconnect()
         if set_connected_flag:
             set_connected_flag(False)
+
+# Backward compatibility alias for function name
+run_EXCHANGE_shared_memory_reader = run_bintr_shared_memory_reader

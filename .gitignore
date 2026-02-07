@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+# Virtual env – ignore everything (all file changes)
+.venv
+.venv/
+.venv/**
+venv/
+venv/**
+*.egg-info/
+.eggs/
+dist/
+
+# Cython / C extension build
+build/
+*.so
+*.o
+*.a
+
+# Compiled binaries (no extension)
+binance_cs_ws_client
+binance_tr_ws_client
+EXCHANGE_ws_client
+send_binance_tr_order
+
+# Java
+*.class
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store

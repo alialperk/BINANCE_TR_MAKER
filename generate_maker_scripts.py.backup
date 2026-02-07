@@ -145,7 +145,7 @@ def generate_maker_scripts():
         
         # Update error message
         script_content = re.sub(
-            r'logging\.error\(f"Invalid SCRIPT_ID: \{SCRIPT_ID\}. Must be.*?"\)',
+            r'logging\.error\(f"Invalid SCRIPT_ID: \{SCRIPT_ID\}. Must be 1, 2, 3, 4"\)',
             f'logging.error(f"Invalid SCRIPT_ID: {{SCRIPT_ID}}. Must be 1-10")',
             script_content
         )
@@ -165,9 +165,18 @@ def generate_maker_scripts():
     10: 23, # Script 10 -> CPU Core 23
 }"""
         
+        # Replace CPU_CORES mapping - match the entire block including comments
         script_content = re.sub(
             r'CPU_CORES = \{.*?\n\}',
             cpu_cores_code,
+            script_content,
+            flags=re.DOTALL
+        )
+        
+        # Also ensure the comment block is updated
+        script_content = re.sub(
+            r'# CPU affinity configuration.*?#   - Remaining cores:.*?processes',
+            f'# CPU affinity configuration (Multi-Core System)\n# IMPORTANT: CPU core allocation:\n#   - Cores 0-9: EXCHANGE (Binance TR) C++ WebSocket clients (10 cores, one process per core)\n#   - Cores 10-13: Binance CS C++ WebSocket clients (4 cores for redundancy)\n#   - Cores 14-23: Python arbitrage scripts (10 scripts, 1 per core, isolated)\n#   - Remaining cores: OS, GUI, Redis, monitoring, and other system processes',
             script_content,
             flags=re.DOTALL
         )
@@ -181,7 +190,7 @@ def generate_maker_scripts():
         
         # Update the full CPU affinity comment block
         script_content = re.sub(
-            r'# CPU affinity configuration.*?#   - Remaining cores:.*?processes',
+            r'# CPU affinity configuration.*?Cores.*?are available for.*?processes',
             f'# CPU affinity configuration (Multi-Core System)\n# IMPORTANT: CPU core allocation:\n#   - Cores 0-9: EXCHANGE (Binance TR) C++ WebSocket clients (10 cores, one process per core)\n#   - Cores 10-13: Binance CS C++ WebSocket clients (4 cores for redundancy)\n#   - Cores 14-23: Python arbitrage scripts (10 scripts, 1 per core, isolated)\n#   - Remaining cores: OS, GUI, Redis, monitoring, and other system processes',
             script_content,
             flags=re.DOTALL

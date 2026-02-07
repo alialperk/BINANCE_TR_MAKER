@@ -6624,30 +6624,6 @@
     ]
   },
   {
-    "instrument_id": 8464,
-    "type": "perpetual",
-    "code": "BIDUSDT",
-    "exchange_id": 8,
-    "exchange_code": "binance_swap",
-    "exchange_name": "",
-    "hosts": [
-      {
-        "host": "63.180.141.87",
-        "ip": "63.180.141.87",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      },
-      {
-        "host": "63.180.84.140",
-        "ip": "63.180.84.140",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      }
-    ]
-  },
-  {
     "instrument_id": 8465,
     "type": "perpetual",
     "code": "TUTUSDT",
@@ -8328,30 +8304,6 @@
     ]
   },
   {
-    "instrument_id": 8547,
-    "type": "perpetual",
-    "code": "DMCUSDT",
-    "exchange_id": 8,
-    "exchange_code": "binance_swap",
-    "exchange_name": "",
-    "hosts": [
-      {
-        "host": "63.180.141.87",
-        "ip": "63.180.141.87",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      },
-      {
-        "host": "63.180.84.140",
-        "ip": "63.180.84.140",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      }
-    ]
-  },
-  {
     "instrument_id": 8548,
     "type": "perpetual",
     "code": "HUSDT",
@@ -8499,30 +8451,6 @@
     "instrument_id": 8556,
     "type": "perpetual",
     "code": "MUSDT",
-    "exchange_id": 8,
-    "exchange_code": "binance_swap",
-    "exchange_name": "",
-    "hosts": [
-      {
-        "host": "63.180.141.87",
-        "ip": "63.180.141.87",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      },
-      {
-        "host": "63.180.84.140",
-        "ip": "63.180.84.140",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      }
-    ]
-  },
-  {
-    "instrument_id": 8557,
-    "type": "perpetual",
-    "code": "TANSSIUSDT",
     "exchange_id": 8,
     "exchange_code": "binance_swap",
     "exchange_name": "",
@@ -8811,30 +8739,6 @@
     "instrument_id": 8571,
     "type": "perpetual",
     "code": "TAGUSDT",
-    "exchange_id": 8,
-    "exchange_code": "binance_swap",
-    "exchange_name": "",
-    "hosts": [
-      {
-        "host": "63.180.141.87",
-        "ip": "63.180.141.87",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      },
-      {
-        "host": "63.180.84.140",
-        "ip": "63.180.84.140",
-        "ipv6": null,
-        "location": "eu-central-1",
-        "port": 10000
-      }
-    ]
-  },
-  {
-    "instrument_id": 8572,
-    "type": "perpetual",
-    "code": "ZRCUSDT",
     "exchange_id": 8,
     "exchange_code": "binance_swap",
     "exchange_name": "",
@@ -11643,6 +11547,174 @@
     "instrument_id": 8694,
     "type": "perpetual",
     "code": "SPORTFUNUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8695,
+    "type": "perpetual",
+    "code": "AIAUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8696,
+    "type": "perpetual",
+    "code": "ACUUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8697,
+    "type": "perpetual",
+    "code": "我踏马来了USDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8698,
+    "type": "perpetual",
+    "code": "ELSAUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8699,
+    "type": "perpetual",
+    "code": "SKRUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8700,
+    "type": "perpetual",
+    "code": "SPACEUSDT",
+    "exchange_id": 8,
+    "exchange_code": "binance_swap",
+    "exchange_name": "",
+    "hosts": [
+      {
+        "host": "63.180.141.87",
+        "ip": "63.180.141.87",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      },
+      {
+        "host": "63.180.84.140",
+        "ip": "63.180.84.140",
+        "ipv6": null,
+        "location": "eu-central-1",
+        "port": 10000
+      }
+    ]
+  },
+  {
+    "instrument_id": 8701,
+    "type": "perpetual",
+    "code": "FIGHTUSDT",
     "exchange_id": 8,
     "exchange_code": "binance_swap",
     "exchange_name": "",

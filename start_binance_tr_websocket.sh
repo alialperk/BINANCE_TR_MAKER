@@ -19,7 +19,11 @@ if ! command -v g++ &> /dev/null; then
 fi
 
 # Check for OpenSSL development libraries
-if ! pkg-config --exists openssl; then
+if ! command -v pkg-config &> /dev/null; then
+    echo "Warning: pkg-config not found. Installing pkg-config and libssl-dev..."
+    sudo apt-get update
+    sudo apt-get install -y pkg-config libssl-dev
+elif ! pkg-config --exists openssl 2>/dev/null; then
     echo "Warning: OpenSSL development libraries may not be installed."
     echo "Installing libssl-dev..."
     sudo apt-get update
@@ -50,10 +54,10 @@ else
 fi
 
 # Build the executable
-echo "Compiling binance_tr_ws_client.cpp..."
+echo "Compiling EXCHANGE_ws_client.cpp..."
 g++ -std=c++17 -O3 -march=native -mtune=native \
     -o binance_tr_ws_client \
-    binance_tr_ws_client.cpp \
+    EXCHANGE_ws_client.cpp \
     -lssl -lcrypto -lpthread -lrt \
     -Wall -Wextra
 

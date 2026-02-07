@@ -256,7 +256,8 @@ class BinanceCSSharedMemoryReader:
                     col_ask_price: int,
                     col_bid_price: int,
                     global_to_local_index: Optional[Dict[int, int]] = None,
-                    col_time_diff: Optional[int] = None) -> int:
+                    col_time_diff: Optional[int] = None,
+                    update_map: Optional[Dict[str, tuple]] = None) -> int:
         """
         Read updates from shared memory and apply to arbitrage table.
         
@@ -268,6 +269,8 @@ class BinanceCSSharedMemoryReader:
             col_bid_price: Column index for Binance bid price
             global_to_local_index: Mapping from global index to local index
             col_time_diff: Optional column index for Binance time diff (calculated by C++ client)
+            update_map: Optional pre-computed mapping from raw_symbol -> (local_index, price_multiplier, amount_multiplier)
+                       If provided, uses optimized path that eliminates string processing in hot loop
         
         Returns:
             Number of updates processed
@@ -297,32 +300,85 @@ class BinanceCSSharedMemoryReader:
             if entry.timestamp == 0:
                 continue
             
-            # Get symbol string
-            symbol_str = entry.symbol.decode('utf-8', errors='ignore').rstrip('\x00')
-            if not symbol_str:
-                continue
-            
-            # Convert global index to local index
-            local_symbol_idx = None
-            if global_to_local_index is not None:
-                local_symbol_idx = global_to_local_index.get(i)
-                if local_symbol_idx is None:
+            # OPTIMIZED PATH: Use pre-computed update_map if available (eliminates string processing in hot loop)
+            if update_map is not None:
+                # Get symbol string once
+                symbol_str = entry.symbol.decode('utf-8', errors='ignore').rstrip('\x00')
+                if not symbol_str:
+                    continue
+                
+                # Fast lookup in pre-computed map
+                map_entry = update_map.get(symbol_str)
+                if map_entry is None:
                     skipped_indices.append(i)
                     continue
+                
+                local_symbol_idx, price_mult, amount_mult = map_entry
+                
+                # Apply price multiplier (0.001 for 1000-prefix symbols, 1.0 otherwise)
+                ask_price = entry.ask_price * price_mult
+                bid_price = entry.bid_price * price_mult
             else:
-                # Try to find symbol in symbol_index_map
-                if symbol_str in symbol_index_map:
-                    local_symbol_idx = symbol_index_map[symbol_str]
-                else:
-                    skipped_indices.append(i)
+                # FALLBACK PATH: Original logic with string processing (slower)
+                # Get symbol string
+                symbol_str = entry.symbol.decode('utf-8', errors='ignore').rstrip('\x00')
+                if not symbol_str:
                     continue
+                
+                # Convert global index to local index
+                local_symbol_idx = None
+                if global_to_local_index is not None:
+                    # Use global_to_local_index mapping (preferred method)
+                    local_symbol_idx = global_to_local_index.get(i)
+                    if local_symbol_idx is None:
+                        skipped_indices.append(i)
+                        continue
+                else:
+                    # Fallback: Try to find symbol in symbol_index_map
+                    # The shared memory has symbols like "0GUSDT", but symbol_index_map has base symbols like "0G"
+                    # So we need to strip "USDT" suffix if present and apply exceptional symbol normalization
+                    base_symbol = symbol_str
+                    if symbol_str.endswith("USDT"):
+                        binance_cs_base_symbol = symbol_str[:-4]  # Remove "USDT" suffix (e.g., "1000SHIBUSDT" -> "1000SHIB")
+                        # Normalize to EXCHANGE format for consistent mapping (e.g., "1000SHIB" -> "SHIB")
+                        try:
+                            import arbit_config_maker_BTR as arbit_config
+                            base_symbol = arbit_config.normalize_base_symbol_from_binance_cs(binance_cs_base_symbol)
+                        except (ImportError, AttributeError):
+                            # Fallback if arbit_config not available
+                            base_symbol = binance_cs_base_symbol
+                    
+                    if base_symbol in symbol_index_map:
+                        local_symbol_idx = symbol_index_map[base_symbol]
+                    else:
+                        skipped_indices.append(i)
+                        continue
+                
+                # CRITICAL: For "1000" prefix symbols (1000SHIB, 1000BONK, 1000FLOKI, 1000PEPE, 1000LUNC, 1000XEC),
+                # multiply prices by 0.001 because the price shown is for 1000 units, not 1 unit
+                ask_price = entry.ask_price
+                bid_price = entry.bid_price
+                
+                try:
+                    import arbit_config_maker_BTR as arbit_config
+                    if arbit_config.is_1000_prefix_symbol(symbol_str):
+                        # Price is for 1000 units, convert to price per 1 unit
+                        ask_price = entry.ask_price * 0.001
+                        bid_price = entry.bid_price * 0.001
+                except (ImportError, AttributeError):
+                    # Fallback: check manually if symbol starts with "1000"
+                    base_symbol_check = symbol_str
+                    if symbol_str.endswith("USDT"):
+                        base_symbol_check = symbol_str[:-4]
+                    if base_symbol_check.startswith("1000"):
+                        ask_price = entry.ask_price * 0.001
+                        bid_price = entry.bid_price * 0.001
             
-            # Verify bounds
+            # Verify bounds and write to arbitrage table
             if local_symbol_idx is not None and local_symbol_idx < arbitrage_table_np.shape[0]:
-                # Read prices (only prices, quantities are 0.0 as per C++ client)
                 arbitrage_table_np[local_symbol_idx, col_time] = entry.timestamp
-                arbitrage_table_np[local_symbol_idx, col_ask_price] = entry.ask_price
-                arbitrage_table_np[local_symbol_idx, col_bid_price] = entry.bid_price
+                arbitrage_table_np[local_symbol_idx, col_ask_price] = ask_price
+                arbitrage_table_np[local_symbol_idx, col_bid_price] = bid_price
                 
                 # Read time diff if column is specified
                 if col_time_diff is not None:
@@ -331,7 +387,8 @@ class BinanceCSSharedMemoryReader:
                 updates_processed += 1
                 
                 if len(sample_updates) < 3:
-                    sample_updates.append((local_symbol_idx, entry.ask_price, entry.bid_price))
+                    # Store adjusted prices (already multiplied by 0.001 if needed)
+                    sample_updates.append((local_symbol_idx, ask_price, bid_price))
         
         # Debug logging (only once, on first successful read)
         if not hasattr(self, '_debug_logged_once'):
@@ -339,12 +396,12 @@ class BinanceCSSharedMemoryReader:
         
         if not self._debug_logged_once and updates_processed > 0:
             # Build detailed debug message with prices (only once)
-            debug_lines = [f"Binance CS shared memory read: num_symbols={num_symbols}, updates_processed={updates_processed}"]
+            debug_lines = [f"✓ Binance CS shared memory read: num_symbols={num_symbols}, updates_processed={updates_processed}"]
             if skipped_indices:
                 debug_lines.append(f"  Skipped indices (not in this script's mapping): {skipped_indices[:10]}...")
             
             if sample_updates:
-                debug_lines.append("  Sample prices from shared memory:")
+                debug_lines.append("  ✓ Sample prices from shared memory (verifying write/read cycle):")
                 for local_symbol_idx, ask_price, bid_price in sample_updates[:5]:
                     symbol_name = "?"
                     try:
@@ -358,12 +415,79 @@ class BinanceCSSharedMemoryReader:
                     try:
                         table_ask = arbitrage_table_np[local_symbol_idx, col_ask_price]
                         table_bid = arbitrage_table_np[local_symbol_idx, col_bid_price]
-                        debug_lines.append(f"    {symbol_name} (idx={local_symbol_idx}): shm_ask={ask_price:.8f}, shm_bid={bid_price:.8f}, table_ask={table_ask:.8f}, table_bid={table_bid:.8f}")
+                        # Verify the write/read cycle is working
+                        ask_match = abs(table_ask - ask_price) < 0.0001
+                        bid_match = abs(table_bid - bid_price) < 0.0001
+                        match_status = "✓" if (ask_match and bid_match) else "✗"
+                        debug_lines.append(f"    {match_status} {symbol_name} (idx={local_symbol_idx}): "
+                                          f"shm_ask={ask_price:.8f}, shm_bid={bid_price:.8f}, "
+                                          f"table_ask={table_ask:.8f}, table_bid={table_bid:.8f}")
                     except:
-                        debug_lines.append(f"    {symbol_name} (idx={local_symbol_idx}): ask={ask_price:.8f}, bid={bid_price:.8f}")
+                        debug_lines.append(f"    ? {symbol_name} (idx={local_symbol_idx}): ask={ask_price:.8f}, bid={bid_price:.8f}")
             
             logging.info("\n".join(debug_lines))
             self._debug_logged_once = True
+        
+        # Periodic verification logging (every 100 reads)
+        if not hasattr(self, '_read_count'):
+            self._read_count = 0
+        self._read_count += 1
+        
+        if self._read_count % 100 == 0 and updates_processed > 0:
+            # Verify data integrity by checking a few random entries
+            verification_samples = []
+            for i in range(min(num_symbols, 5)):
+                entry = self.shm_data.entries[i]
+                if entry.timestamp > 0:
+                    symbol_str = entry.symbol.decode('utf-8', errors='ignore').rstrip('\x00')
+                    
+                    # Calculate adjusted prices (multiply by 0.001 for 1000 prefix symbols)
+                    shm_ask_raw = entry.ask_price
+                    shm_bid_raw = entry.bid_price
+                    try:
+                        import arbit_config_maker_BTR as arbit_config
+                        if arbit_config.is_1000_prefix_symbol(symbol_str):
+                            shm_ask = shm_ask_raw * 0.001
+                            shm_bid = shm_bid_raw * 0.001
+                        else:
+                            shm_ask = shm_ask_raw
+                            shm_bid = shm_bid_raw
+                    except (ImportError, AttributeError):
+                        # Fallback: check manually
+                        base_symbol_check = symbol_str
+                        if symbol_str.endswith("USDT"):
+                            base_symbol_check = symbol_str[:-4]
+                        if base_symbol_check.startswith("1000"):
+                            shm_ask = shm_ask_raw * 0.001
+                            shm_bid = shm_bid_raw * 0.001
+                        else:
+                            shm_ask = shm_ask_raw
+                            shm_bid = shm_bid_raw
+                    
+                    if symbol_str in symbol_index_map:
+                        local_idx = symbol_index_map[symbol_str]
+                        if local_idx < arbitrage_table_np.shape[0]:
+                            table_ask = arbitrage_table_np[local_idx, col_ask_price]
+                            table_bid = arbitrage_table_np[local_idx, col_bid_price]
+                            ask_match = abs(table_ask - shm_ask) < 0.0001
+                            bid_match = abs(table_bid - shm_bid) < 0.0001
+                            verification_samples.append((symbol_str, ask_match and bid_match))
+                    elif global_to_local_index is not None:
+                        # Try using global_to_local_index mapping
+                        local_idx = global_to_local_index.get(i)
+                        if local_idx is not None and local_idx < arbitrage_table_np.shape[0]:
+                            table_ask = arbitrage_table_np[local_idx, col_ask_price]
+                            table_bid = arbitrage_table_np[local_idx, col_bid_price]
+                            ask_match = abs(table_ask - shm_ask) < 0.0001
+                            bid_match = abs(table_bid - shm_bid) < 0.0001
+                            verification_samples.append((symbol_str, ask_match and bid_match))
+            
+            if verification_samples:
+                all_match = all(match for _, match in verification_samples)
+                status = "✓" if all_match else "⚠"
+                logging.info(f"{status} Binance CS shared memory verification (read #{self._read_count}): "
+                           f"{sum(1 for _, m in verification_samples if m)}/{len(verification_samples)} samples match "
+                           f"(C++ write → Python read cycle working)")
         
         return updates_processed
     
@@ -403,7 +527,8 @@ async def run_binance_shared_memory_reader(arbitrage_table_np: np.ndarray,
                                           set_connected_flag: Optional[callable] = None,
                                           global_to_local_index: Optional[Dict[int, int]] = None,
                                           hosts: Optional[list] = None,
-                                          col_time_diff: Optional[int] = None):
+                                          col_time_diff: Optional[int] = None,
+                                          update_map: Optional[Dict[str, tuple]] = None):
     """
     Async function to continuously read from Binance shared memory and update arbitrage table.
     Supports reading from multiple hosts (one C++ client per host, each subscribing to all symbols).
@@ -421,6 +546,8 @@ async def run_binance_shared_memory_reader(arbitrage_table_np: np.ndarray,
                If provided, reads from multiple shared memory sources (one per host)
         col_time_diff: Optional column index for Binance time diff (calculated by C++ client)
                        If provided, reads time_diff from shared memory and writes to arbitrage table
+        update_map: Optional pre-computed mapping from raw_symbol -> (local_index, price_multiplier, amount_multiplier)
+                    If provided, eliminates string processing in hot loop for better performance
     """
     # Create reader
     # IMPORTANT: Both C++ clients write to the SAME shared memory (/binance_cs_orderbook_shm)
@@ -478,7 +605,8 @@ async def run_binance_shared_memory_reader(arbitrage_table_np: np.ndarray,
                     col_ask_price,
                     col_bid_price,
                     global_to_local_index,
-                    col_time_diff=col_time_diff  # Pass time diff column index
+                    col_time_diff=col_time_diff,  # Pass time diff column index
+                    update_map=update_map  # Pass pre-computed update map for optimization
                 )
                 total_updates += updates
             

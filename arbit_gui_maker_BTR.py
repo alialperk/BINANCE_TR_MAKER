@@ -30,7 +30,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QTabWidget, QWidget, QVB
                             QHeaderView, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox,
                             QCheckBox, QMessageBox, QSplitter, QFrame, QGridLayout, QStackedWidget,
                             QMenu, QGroupBox, QScrollArea, QSizePolicy, QAbstractItemView, QListWidget)
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize, QItemSelectionModel
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QThread, QSize, QItemSelectionModel, QLocale
 from PyQt6.QtGui import QFont, QColor, QBrush, QCursor, QIcon, QPixmap, QPalette, QPainter, QAction
 
 # Initialize logging
@@ -76,51 +76,64 @@ class DataRefreshThread(QThread):
                         return ''
                 
                 # Format time columns
-                df['BinanceTime'] = df['BinanceTime'].apply(format_timestamp)
-                df['BTCTURKTime'] = df['BTCTURKTime'].apply(format_timestamp)
+                if 'Binance_Time' in df.columns:
+                    df['Binance_Time'] = df['Binance_Time'].apply(format_timestamp)
+                if 'EXCHANGE_Time' in df.columns:
+                    df['EXCHANGE_Time'] = df['EXCHANGE_Time'].apply(format_timestamp)
                 
                 # Convert TimeDiff from milliseconds to seconds
                 #df['TimeDiff'] = df['TimeDiff'].apply(lambda x: round(x/1000, 3) if pd.notna(x) else '')
                 
                 # Ensure numeric columns are properly typed
                 numeric_columns = [
-                    'BinanceBidP', 'BinanceBidA', 'BinanceAskP', 'BinanceAskA',
-                    'Binance_free_usdt', 'Binance_free_TRY', 'BTCTURK_free_TRY',
+                    'Binance_AskP1', 'Binance_AskA1', 'Binance_BidP1', 'Binance_BidA1',
+                    'Binance_free_usdt', 'Binance_free_TRY', 'EXCHANGE_free_TRY',
                     'OpenMargin', 'CloseMargin',
-                    'BTCTURKPositionAmount_TRY', 'OpenTriggerMargin', 'CloseTriggerMargin',
+                    'EXCHANGE_PositionAmount_TRY', 'OpenTriggerMargin', 'CloseTriggerMargin',
                     'OpenStopMargin', 'CloseStopMargin', 'OpenAggression', 'CloseAggression',
-                    'OpenMarginWindow', 'CloseMarginWindow', 'MinBuyOrderAmount_TRY', 'MinSellOrderAmount_TRY', 'MaxPositionAmount_TRY', 'USDTTRY_bid', 'USDTTRY_ask',
-                    'BinanceTimeDiff'  # CRITICAL: Must be numeric for proper sorting
+                    'OpenMarginWindow', 'CloseMarginWindow', 'MinBuyOrderAmount_TRY', 'BuyOrderAmount_TRY', 'MaxBuyOrderAmount_TRY', 'MinSellOrderAmount_TRY', 'MaxSellOrderAmount_TRY', 'MaxPositionAmount_TRY', 'USDTTRY_bid', 'USDTTRY_ask',
+                    'Binance_TimeDiff', 'binance_absolute_time_diff'  # CRITICAL: Must be numeric for proper sorting
                 ]
                 
-                # Ensure BTCTURKSymbol is treated as string before any numeric operations
-                if 'BTCTURKSymbol' in df.columns:
-                    df['BTCTURKSymbol'] = df['BTCTURKSymbol'].astype(str)
+                # Ensure EXCHANGE_Symbol is treated as string before any numeric operations
+                if 'EXCHANGE_Symbol' in df.columns:
+                    df['EXCHANGE_Symbol'] = df['EXCHANGE_Symbol'].astype(str)
                 
                 for col in numeric_columns:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors='coerce')
                 
-                # Add BaseSymbol column - ensure it's created as string
-                df['BaseSymbol'] = df['BTCTURKSymbol'].astype(str).str.replace('TRY', '')
+                # Ensure BaseSymbol column exists - use Base_Symbol from config if available, otherwise create from EXCHANGE_Symbol
+                if 'BaseSymbol' in df.columns:
+                    # BaseSymbol already exists, ensure it's string and handle NaN values
+                    df['BaseSymbol'] = df['BaseSymbol'].astype(str).replace('nan', '').replace('NaN', '')
+                elif 'Base_Symbol' in df.columns:
+                    # Map Base_Symbol (from config) to BaseSymbol (for GUI)
+                    df['BaseSymbol'] = df['Base_Symbol'].astype(str).replace('nan', '').replace('NaN', '')
+                elif 'EXCHANGE_Symbol' in df.columns:
+                    # Fallback: create BaseSymbol from EXCHANGE_Symbol
+                    df['BaseSymbol'] = df['EXCHANGE_Symbol'].astype(str).str.replace('_TRY', '').replace('nan', '').replace('NaN', '')
+                else:
+                    # Last resort: create empty BaseSymbol column
+                    df['BaseSymbol'] = ''
                
                 return df
         except Exception as e:
             print(f"Error retrieving arbitrage table: {e}")
             return None
 
-btcturk_history_page_no = 1
+EXCHANGE_history_page_no = 1
 binance_history_page_no = 1
 move_history_page_no = 1
 
 
-maker_BTCTURK_trade_history_columns = ["ExecutionTime", "OrderId", "Symbol", "Core", "Side", "Price", "Amount", "AmountTRY", "ExecutedMargin"]
+maker_EXCHANGE_trade_history_columns = ["ExecutionTime", "OrderId", "Symbol", "Core", "Side", "Price", "Amount", "AmountTRY", "ExecutedMargin"]
 
 class TradeHistoryRefreshThread(QThread):
 
-    btcturk_data_refreshed = pyqtSignal(object)
+    EXCHANGE_data_refreshed = pyqtSignal(object)
     binance_data_refreshed = pyqtSignal(object)
-    btcturk_open_orders_refreshed = pyqtSignal(object)
+    EXCHANGE_open_orders_refreshed = pyqtSignal(object)
     move_history_data_refreshed = pyqtSignal(object)
 
     def __init__(self, parent=None):
@@ -135,25 +148,25 @@ class TradeHistoryRefreshThread(QThread):
         while self.running:
             try:
 
-                #Get BTCTURK trade records
-                btcturk_trade_records = []
-                btcturk_start_index = -self.page_size*btcturk_history_page_no
-                btcturk_end_index = -self.page_size*(btcturk_history_page_no-1) - 1
+                #Get EXCHANGE trade records
+                EXCHANGE_trade_records = []
+                EXCHANGE_start_index = -self.page_size*EXCHANGE_history_page_no
+                EXCHANGE_end_index = -self.page_size*(EXCHANGE_history_page_no-1) - 1
                 # Get the most recent items (from newest to oldest)
-                btcturk_trade_records_data = self.redis.lrange('maker_BTCTURK_trade_history', btcturk_start_index, btcturk_end_index)
+                EXCHANGE_trade_records_data = self.redis.lrange('maker_EXCHANGE_trade_history', EXCHANGE_start_index, EXCHANGE_end_index)
                 
-                for record in btcturk_trade_records_data:
+                for record in EXCHANGE_trade_records_data:
                     try:
                         trade_data = json.loads(record)
-                        required_fields = maker_BTCTURK_trade_history_columns
+                        required_fields = maker_EXCHANGE_trade_history_columns
                         if all(field in trade_data for field in required_fields):
-                            btcturk_trade_records.append(trade_data)
+                            EXCHANGE_trade_records.append(trade_data)
                     except json.JSONDecodeError:
                         continue
                 
-                if btcturk_trade_records:
-                    btcturk_df = pd.DataFrame(btcturk_trade_records)
-                    self.btcturk_data_refreshed.emit(btcturk_df)
+                if EXCHANGE_trade_records:
+                    EXCHANGE_df = pd.DataFrame(EXCHANGE_trade_records)
+                    self.EXCHANGE_data_refreshed.emit(EXCHANGE_df)
                 
                 # Get Binance trade records
                 binance_trade_records = []  
@@ -175,34 +188,34 @@ class TradeHistoryRefreshThread(QThread):
                     binance_df = pd.DataFrame(binance_trade_records)
                     self.binance_data_refreshed.emit(binance_df)
 
-                #Get BTCTURK open orders
-                btcturk_open_orders = []
-                btcturk_open_orders_data = self.redis.lrange('maker_open_orders', 0, -1)
+                #Get EXCHANGE open orders
+                EXCHANGE_open_orders = []
+                EXCHANGE_open_orders_data = self.redis.lrange('maker_open_orders', 0, -1)
                 
                 
-                for record in btcturk_open_orders_data:
+                for record in EXCHANGE_open_orders_data:
                     try:
                         order_data = json.loads(record)
                         # Ensure all required fields are present
                         required_fields = ['OrderTime', 'OrderId', 'Symbol', 'Side', 'Price', 'Amount', 'AmountTRY', 'TriggerMargin']
                         if all(field in order_data for field in required_fields):
-                            btcturk_open_orders.append(order_data)
+                            EXCHANGE_open_orders.append(order_data)
                     except json.JSONDecodeError:
                         continue
                 
-                if btcturk_open_orders:
-                    btcturk_open_orders_df = pd.DataFrame(btcturk_open_orders)
+                if EXCHANGE_open_orders:
+                    EXCHANGE_open_orders_df = pd.DataFrame(EXCHANGE_open_orders)
                     # Sort by OrderTime descending (newest first)
                     # Handle both formats: with and without microseconds
-                    btcturk_open_orders_df['OrderTime'] = pd.to_datetime(btcturk_open_orders_df['OrderTime'], format='mixed', errors='coerce')
-                    btcturk_open_orders_df = btcturk_open_orders_df.sort_values('OrderTime', ascending=False)
+                    EXCHANGE_open_orders_df['OrderTime'] = pd.to_datetime(EXCHANGE_open_orders_df['OrderTime'], format='mixed', errors='coerce')
+                    EXCHANGE_open_orders_df = EXCHANGE_open_orders_df.sort_values('OrderTime', ascending=False)
                     # Convert back to string format
-                    btcturk_open_orders_df['OrderTime'] = btcturk_open_orders_df['OrderTime'].dt.strftime('%Y-%m-%d %H:%M:%S')
-                    self.btcturk_open_orders_refreshed.emit(btcturk_open_orders_df)
+                    EXCHANGE_open_orders_df['OrderTime'] = EXCHANGE_open_orders_df['OrderTime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                    self.EXCHANGE_open_orders_refreshed.emit(EXCHANGE_open_orders_df)
                 else:
                     # Emit empty DataFrame with correct columns
-                    btcturk_open_orders_df = pd.DataFrame(columns=['OrderTime', 'OrderId', 'Symbol', 'Side', 'Price', 'Amount', 'AmountTRY', 'TriggerMargin'])
-                    self.btcturk_open_orders_refreshed.emit(btcturk_open_orders_df)
+                    EXCHANGE_open_orders_df = pd.DataFrame(columns=['OrderTime', 'OrderId', 'Symbol', 'Side', 'Price', 'Amount', 'AmountTRY', 'TriggerMargin'])
+                    self.EXCHANGE_open_orders_refreshed.emit(EXCHANGE_open_orders_df)
                 
                 # Get Move History records
                 move_history_records = []
@@ -218,7 +231,7 @@ class TradeHistoryRefreshThread(QThread):
                 for record in move_history_data:
                     try:
                         move_data = json.loads(record)
-                        required_fields = ["MoveTime", "OrderID", "Symbol", "Core", "BinanceExecutedMargin", "BTCTURKExecutedMargin", "StopMargin", "MoveThreshold", "MarginDifference", "PNL", "Source"]
+                        required_fields = ["MoveTime", "OrderID", "Symbol", "Core", "BinanceExecutedMargin", "EXCHANGEExecutedMargin", "StopMargin", "MoveThreshold", "MarginDifference", "PNL", "Source"]
                         if all(field in move_data for field in required_fields):
                             move_history_records.append(move_data)
                         else:
@@ -239,7 +252,7 @@ class TradeHistoryRefreshThread(QThread):
                     self.move_history_data_refreshed.emit(move_history_df)
                 else:
                     # Emit empty DataFrame with correct columns
-                    move_history_df = pd.DataFrame(columns=['MoveTime', 'OrderID', 'Symbol', 'Core', 'BinanceExecutedMargin', 'BTCTURKExecutedMargin', 'StopMargin', 'MoveThreshold', 'MarginDifference', 'PNL', 'Source'])
+                    move_history_df = pd.DataFrame(columns=['MoveTime', 'OrderID', 'Symbol', 'Core', 'BinanceExecutedMargin', 'EXCHANGEExecutedMargin', 'StopMargin', 'MoveThreshold', 'MarginDifference', 'PNL', 'Source'])
                     self.move_history_data_refreshed.emit(move_history_df)
             
                 
@@ -302,149 +315,28 @@ class BooleanTableWidgetItem(QTableWidgetItem):
         return False
 
 class ArbitrageMonitor(QMainWindow):
-    def kill_existing_client_processes(self):
-        """Kill all existing WebSocket client processes to ensure clean start"""
-        try:
-            import psutil
-            import signal
-            
-            # List of process names to kill
-            process_names = [
-                'binance_tr_ws_client',
-                'binance_ws_client',
-                'binance_cs_ws_client',  # Binance CS WebSocket client
-                'binance_websocket_shm_client',  # Legacy shared memory client if exists
-                'websocket_shm_client'  # Legacy BTCTURK client if exists
-            ]
-            
-            killed_count = 0
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                try:
-                    proc_name = proc.info['name']
-                    cmdline = proc.info.get('cmdline', [])
-                    cmdline_str = ' '.join(cmdline) if cmdline else ''
-                    
-                    # Check if process name matches or is in command line
-                    for target_name in process_names:
-                        if target_name in proc_name or target_name in cmdline_str:
-                            try:
-                                logging.info(f"Found existing client process: PID {proc.info['pid']}, Name: {proc_name}, Cmdline: {cmdline_str}")
-                                # Try graceful termination first
-                                proc.terminate()
-                                try:
-                                    proc.wait(timeout=2)
-                                    logging.info(f"Gracefully terminated process PID {proc.info['pid']}")
-                                except psutil.TimeoutExpired:
-                                    # Force kill if graceful termination failed
-                                    proc.kill()
-                                    proc.wait(timeout=1)
-                                    logging.warning(f"Force killed process PID {proc.info['pid']}")
-                                killed_count += 1
-                            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                                logging.warning(f"Could not kill process PID {proc.info['pid']}: {e}")
-                            break
-                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    # Process may have terminated between iteration and access
-                    continue
-            
-            if killed_count > 0:
-                logging.info(f"Killed {killed_count} existing client process(es)")
-                time.sleep(1)  # Give processes time to fully terminate
-            else:
-                logging.info("No existing client processes found")
-                
-        except ImportError:
-            # Fallback to ps/pgrep if psutil is not available
-            logging.warning("psutil not available, using fallback method to kill processes")
-            try:
-                import subprocess
-                
-                process_names = [
-                    'binance_tr_ws_client',
-                    'binance_ws_client',
-                    'binance_cs_ws_client',  # Binance CS WebSocket client
-                    'binance_websocket_shm_client',  # Legacy shared memory client if exists
-                    'websocket_shm_client'  # Legacy BTCTURK client if exists
-                ]
-                
-                killed_count = 0
-                for proc_name in process_names:
-                    try:
-                        # Find PIDs using pgrep
-                        result = subprocess.run(['pgrep', '-f', proc_name], 
-                                               capture_output=True, text=True, timeout=5)
-                        if result.returncode == 0:
-                            pids = result.stdout.strip().split('\n')
-                            for pid in pids:
-                                if pid:
-                                    try:
-                                        pid_int = int(pid)
-                                        logging.info(f"Killing process PID {pid_int} ({proc_name})")
-                                        # Try SIGTERM first
-                                        subprocess.run(['kill', '-TERM', pid], timeout=2)
-                                        time.sleep(0.5)
-                                        # Check if still running, force kill if needed
-                                        check_result = subprocess.run(['kill', '-0', pid], 
-                                                                    capture_output=True, timeout=1)
-                                        if check_result.returncode == 0:
-                                            subprocess.run(['kill', '-KILL', pid], timeout=1)
-                                            logging.warning(f"Force killed process PID {pid_int}")
-                                        else:
-                                            logging.info(f"Gracefully terminated process PID {pid_int}")
-                                        killed_count += 1
-                                    except (ValueError, subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
-                                        logging.warning(f"Error killing PID {pid}: {e}")
-                    except (subprocess.TimeoutExpired, subprocess.SubprocessError, FileNotFoundError) as e:
-                        logging.warning(f"Error finding processes for {proc_name}: {e}")
-                
-                if killed_count > 0:
-                    logging.info(f"Killed {killed_count} existing client process(es) using fallback method")
-                    time.sleep(1)
-                else:
-                    logging.info("No existing client processes found (fallback method)")
-            except Exception as e:
-                logging.error(f"Error in fallback process killing method: {e}")
-        except Exception as e:
-            logging.error(f"Error killing existing client processes: {e}")
-            import traceback
-            logging.error(traceback.format_exc())
-
     def __init__(self):
         super().__init__()
         
-        # Kill any existing client processes before starting GUI
-        logging.info("Checking for and killing existing client processes...")
-        self.kill_existing_client_processes()
+        # Kill all related processes before starting GUI
+        self.kill_all_related_processes()
         
-        # Ensure startup scripts are executable
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        startup_scripts = [
-            os.path.join(current_dir, "start_binance_tr_websocket.sh"),
-            os.path.join(current_dir, "start_binance_websocket.sh")
-        ]
-        for script in startup_scripts:
-            if os.path.exists(script):
-                os.chmod(script, 0o755)
-                logging.info(f"Ensured {script} is executable")
         
-        # Run required scripts before initializing GUI
-        #self._load_CS_instruments()
-        
-        # Set CPU affinity for GUI process (core 11 for 16-core system)
-        # This ensures GUI doesn't interfere with trading processes (cores 0-10)
+        # Set CPU affinity for GUI process (isolated from trading processes)
+        # This ensures GUI doesn't interfere with trading processes (cores 0-23)
         self.set_gui_cpu_affinity()
         
         self.open_trade_columns = [
             'BaseSymbol', 'Maker_Type', 'OpenMargin', 'OpenTriggerMargin', 'OpenStopMargin', 'OpenAggression', 'OpenMarginWindow',
-            'BTCTURKPositionAmount_TRY', 'BTCTURKPositionAmount_coin', 'BinancePositionAmount_coin',
-            'MaxPositionAmount_TRY', 'CapacityGap_TRY', 'BinanceTime', 'BTCTURKTime', 'BinanceTimeDiff']
+            'EXCHANGE_PositionAmount_TRY', 'EXCHANGE_PositionAmount_coin', 'Binance_PositionAmount_coin',
+            'MaxPositionAmount_TRY', 'CapacityGap_TRY', 'Binance_Time', 'EXCHANGE_Time', 'Binance_TimeDiff', 'binance_absolute_time_diff']
 
         self.close_trade_columns = [
             'BaseSymbol', 'Maker_Type', 'CloseMargin', 'CloseTriggerMargin', 'CloseStopMargin', 'CloseAggression', 'CloseMarginWindow',
-            'BTCTURKPositionAmount_TRY', 'BTCTURKPositionAmount_coin', 'BinancePositionAmount_coin',
-            'BinanceTime', 'BTCTURKTime', 'BinanceTimeDiff']
+            'EXCHANGE_PositionAmount_TRY', 'EXCHANGE_PositionAmount_coin', 'Binance_PositionAmount_coin',
+            'Binance_Time', 'EXCHANGE_Time', 'Binance_TimeDiff']
 
-        self.btcturk_open_orders_columns = [
+        self.EXCHANGE_open_orders_columns = [
             'OrderTime', 'OrderId', 'Symbol', 'Core', 'Side', 'Price', 'Amount', 'AmountTRY', 'TriggerMargin'
         ]
 
@@ -455,11 +347,16 @@ class ArbitrageMonitor(QMainWindow):
         self.prev_enable_orders_state = None
         
         # Store C++ WebSocket process references for cleanup
+        self.cpp_EXCHANGE_process = None
         self.cpp_binance_process = None
-        self.cpp_binance_tr_process = None
-          
+        self.cpp_binance_cs_process = None
+        
         # Store arbitrage script process references for cleanup
         self.arbitrage_processes = []
+        
+        # Initialize balance history for 10-second moving average (single account: EXCHANGE)
+        self.EXCHANGE_balance_history = []  # Keep last 10 readings for moving average
+        self.buy_order_initialized = False  # Track if buy orders have been initialized
         
         # Initialize Redis connection
         self.redis = redis.Redis(host='localhost', port=6379)
@@ -489,7 +386,7 @@ class ArbitrageMonitor(QMainWindow):
                 from datetime import datetime
                 StopMargin = 30.00
                 BinanceExecutedMargin = 14.58
-                BTCTURKExecutedMargin = 25.00
+                EXCHANGEExecutedMargin = 25.00
                 MarginDifference = round((BinanceExecutedMargin - StopMargin), 2)
                 PNL = round(-150.50, 2)
 
@@ -499,7 +396,7 @@ class ArbitrageMonitor(QMainWindow):
                     'Symbol': 'BTC',
                     'Core': 1,
                     'BinanceExecutedMargin': BinanceExecutedMargin,
-                    'BTCTURKExecutedMargin': BTCTURKExecutedMargin,
+                    'EXCHANGEExecutedMargin': EXCHANGEExecutedMargin,
                     'StopMargin': StopMargin,
                     'MoveThreshold': 15,
                     'MarginDifference': MarginDifference,
@@ -513,27 +410,29 @@ class ArbitrageMonitor(QMainWindow):
             logging.error(f"Error creating dummy move history at startup: {e}")
 
         # Set up the main window
-        self.setWindowTitle("BTCTURK-BINANCE MAKER")
+        self.setWindowTitle("EXCHANGE-BINANCE MAKER")
         # Set window icon
-        icon_path = os.path.join(os.path.dirname(__file__), 'btcturklogo.png')
+        icon_path = os.path.join(os.path.dirname(__file__), 'EXCHANGElogo.png')
         print(f"Icon path: {icon_path}")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         self.setGeometry(100, 100, 1920, 1080)
-        
+
         # Create the central widget and main layout
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
         
         # Initialize refresh threads first
         self.refresh_thread = DataRefreshThread()
         self.refresh_thread.data_refreshed.connect(self.update_monitoring_data)
         
         self.trade_history_thread = TradeHistoryRefreshThread()
-        self.trade_history_thread.btcturk_data_refreshed.connect(self.update_maker_BTCTURK_trade_history)
+        self.trade_history_thread.EXCHANGE_data_refreshed.connect(self.update_maker_EXCHANGE_trade_history)
         self.trade_history_thread.binance_data_refreshed.connect(self.update_maker_binance_trade_history)
-        self.trade_history_thread.btcturk_open_orders_refreshed.connect(self.update_btcturk_open_orders)
+        self.trade_history_thread.EXCHANGE_open_orders_refreshed.connect(self.update_EXCHANGE_open_orders)
         self.trade_history_thread.move_history_data_refreshed.connect(self.update_maker_move_history)
         # Create tab widget
         self.tab_widget = DetachableTabWidget()
@@ -576,6 +475,71 @@ class ArbitrageMonitor(QMainWindow):
         """)
         control_layout.setContentsMargins(5, 0, 5, 0)
         control_layout.setSpacing(5)  # Reduce spacing to move buttons closer together
+        
+        # Health Details button - leftmost part
+        self.health_details_btn = QPushButton("Health\nDetails")
+        self.health_details_btn.setFixedWidth(65)
+        self.health_details_btn.setFixedHeight(45)
+        self.health_details_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #555555;
+                color: white;
+                font-weight: normal;
+                font-size: 11px;
+            }
+            QPushButton:hover {
+                background-color: #1565c0;
+            }
+            QPushButton:pressed {
+                background-color: #0d47a1;
+            }
+        """)
+        self.health_details_btn.clicked.connect(self.show_health_details)
+        control_layout.addWidget(self.health_details_btn)
+        
+        # Health Status Box (2x2 grid)
+        health_status_widget = QWidget()
+        health_status_layout = QGridLayout(health_status_widget)
+        health_status_layout.setContentsMargins(5, 5, 5, 5)
+        health_status_layout.setSpacing(3)
+        
+        # Create status lights (QLabel with colored background)
+        # Row 1, Col 1: EXCHANGE Data
+        self.EXCHANGE_data_order_label = QLabel("EXCHANGE DATA | ORDER")
+        self.EXCHANGE_data_order_label.setStyleSheet("color: white; font-size: 11px;")
+        self.EXCHANGE_data_light = QLabel()
+        self.EXCHANGE_data_light.setFixedSize(15, 15)
+        self.EXCHANGE_data_light.setStyleSheet("background-color: gray; border-radius: 7px;")
+        self.EXCHANGE_order_light = QLabel()
+        self.EXCHANGE_order_light.setFixedSize(15, 15)
+        self.EXCHANGE_order_light.setStyleSheet("background-color: gray; border-radius: 7px;")
+        health_status_layout.addWidget(self.EXCHANGE_data_order_label, 0, 0)
+        health_status_layout.addWidget(self.EXCHANGE_data_light, 0, 1)
+        health_status_layout.addWidget(self.EXCHANGE_order_light, 0, 2)
+        
+        # Row 2, Col 1: CS Binance Data
+        self.cs_data_order_label = QLabel("BINANCE DATA | ORDER")
+        self.cs_data_order_label.setStyleSheet("color: white; font-size: 11px;")
+        self.cs_data_light = QLabel()
+        self.cs_data_light.setFixedSize(15, 15)
+        self.cs_data_light.setStyleSheet("background-color: gray; border-radius: 7px;")
+        self.cs_order_light = QLabel()
+        self.cs_order_light.setFixedSize(15, 15)
+        self.cs_order_light.setStyleSheet("background-color: gray; border-radius: 7px;")
+        health_status_layout.addWidget(self.cs_data_order_label, 1, 0)
+        health_status_layout.addWidget(self.cs_data_light, 1, 1)
+        health_status_layout.addWidget(self.cs_order_light, 1, 2)
+                
+        health_status_widget.setFixedWidth(200)
+        health_status_widget.setFixedHeight(50)
+        health_status_widget.setStyleSheet("""
+            QWidget {
+                border: 1px solid #555555;
+                border-radius: 3px;
+                background-color: #2d2d2d;
+            }
+        """)
+        control_layout.addWidget(health_status_widget)
         
         # System control button - make it more compact
         self.system_control_btn = QPushButton("START")
@@ -660,7 +624,7 @@ class ArbitrageMonitor(QMainWindow):
         self.balances_label = QLabel("""
             <div style="line-height: 1.4;">
                 Binance: $0.00 (₺0.00)<br>
-                BTCTURK: ₺0.00
+                EXCHANGE: ₺0.00
             </div>
         """)
         control_layout.addWidget(self.balances_label)
@@ -691,8 +655,7 @@ class ArbitrageMonitor(QMainWindow):
         # Set up each tab
         self.setup_monitoring_page()
         self.setup_settings_page()
-        self.setup_symbol_management_page()
-        
+     
         # Start refresh threads
         self.refresh_thread.start()
         self.trade_history_thread.start()
@@ -706,12 +669,17 @@ class ArbitrageMonitor(QMainWindow):
         self.balance_timer.timeout.connect(self.check_system_status)
         self.balance_timer.start(1000)  # Update every second
         
+        # Timer for updating health status
+        self.health_timer = QTimer()
+        self.health_timer.timeout.connect(self.update_health_status)
+        self.health_timer.start(2000)  # Update every 2 seconds
+        
         # Initialize highlighted rows for trade history
-        self.btcturk_highlighted_rows = {}
+        self.EXCHANGE_highlighted_rows = {}
         self.binance_highlighted_rows = {}
         
         # Initialize last seen trade counts
-        self.last_btcturk_trade_count = 0
+        self.last_EXCHANGE_trade_count = 0
         self.last_binance_trade_count = 0
         
         # Add variables to track selection
@@ -722,7 +690,7 @@ class ArbitrageMonitor(QMainWindow):
         #Executed trade highlight duration in seconds
         self.highlight_duration = 10
 
-        symbol_list = self.redis.get('maker_Symbol_List')
+        symbol_list = self.redis.get('EXCHANGE_Symbol_List')
         self.current_symbols = json.loads(symbol_list.decode('utf-8')) if symbol_list else []
         
 
@@ -848,58 +816,24 @@ class ArbitrageMonitor(QMainWindow):
             }
            
         """)
-
-    def _load_CS_instruments(self):
-        """Load CS instruments by running required scripts before initializing GUI"""
-        script_dir = os.path.dirname(os.path.abspath(__file__))
         
-        # Run CS_fetch_all_instruments.py first
-        logging.info("Running CS_fetch_all_instruments.py...")
-        try:
-            script1_path = os.path.join(script_dir, "CS_fetch_all_instruments.py")
-            result1 = subprocess.run([sys.executable, script1_path], 
-                                    capture_output=True, text=True, timeout=30)
-            if result1.returncode == 0:
-                logging.info("CS_fetch_all_instruments.py completed successfully")
-            else:
-                logging.error(f"CS_fetch_all_instruments.py failed with return code {result1.returncode}")
-                logging.error(f"Error output: {result1.stderr}")
-        except subprocess.TimeoutExpired:
-            logging.error("CS_fetch_all_instruments.py timed out after 30 seconds")
-        except Exception as e:
-            logging.error(f"Error running CS_fetch_all_instruments.py: {e}")
-        
-        # Run CS_fetch_btcturk_instruments.py second
-        logging.info("Running CS_fetch_btcturk_instruments.py...")
-        try:
-            script2_path = os.path.join(script_dir, "CS_fetch_btcturk_instruments.py")
-            result2 = subprocess.run([sys.executable, script2_path], 
-                                    capture_output=True, text=True, timeout=30)
-            if result2.returncode == 0:
-                logging.info("CS_fetch_btcturk_instruments.py completed successfully")
-            else:
-                logging.error(f"CS_fetch_btcturk_instruments.py failed with return code {result2.returncode}")
-                logging.error(f"Error output: {result2.stderr}")
-        except subprocess.TimeoutExpired:
-            logging.error("CS_fetch_btcturk_instruments.py timed out after 30 seconds")
-        except Exception as e:
-            logging.error(f"Error running CS_fetch_btcturk_instruments.py: {e}")
 
     def set_gui_cpu_affinity(self):
         """Set CPU affinity for GUI process to an isolated core
         
-        For 16-core system:
-        - Cores 0-2: C++ WebSocket clients
-        - Cores 3-10: Python arbitrage scripts
-        - Core 11: GUI (isolated)
-        - Cores 12-15: System processes, Redis, monitoring
+        CPU core allocation:
+        - Cores 0-9: EXCHANGE (Binance TR) C++ WebSocket clients (10 cores)
+        - Cores 10-13: Binance CS C++ WebSocket clients (4 cores)
+        - Cores 14-23: Python arbitrage scripts (10 scripts)
+        - Cores 24+: GUI, OS, Redis, monitoring, and other system processes
         """
         try:
             import os
             import psutil
             
-            # Use core 11 for GUI (first available after trading processes)
-            gui_cpu_core = 11
+            # Use core 24 for GUI (first available after all trading processes)
+            # If system has fewer cores, use the last available core
+            gui_cpu_core = 24
             
             # Get current process
             current_process = psutil.Process()
@@ -907,18 +841,22 @@ class ArbitrageMonitor(QMainWindow):
             # Check if the requested core exists
             available_cores = list(range(psutil.cpu_count()))
             if gui_cpu_core not in available_cores:
-                # Fall back to last available core or core 3 if system has fewer cores
-                if len(available_cores) > 10:
+                # Fall back to last available core (should be after cores 0-23)
+                if len(available_cores) > 23:
                     gui_cpu_core = available_cores[-1]  # Use last core
+                elif len(available_cores) > 13:
+                    # System has more than 13 cores but less than 24, use last available
+                    gui_cpu_core = available_cores[-1]
                 else:
+                    # System has fewer cores, use the last one
                     gui_cpu_core = available_cores[-1] if available_cores else 0
-                logging.warning(f"Requested CPU core 11 not available. Using core {gui_cpu_core} instead.")
+                logging.warning(f"Requested CPU core 24 not available. Using core {gui_cpu_core} instead.")
             
             # Set CPU affinity
             current_process.cpu_affinity([gui_cpu_core])
             
             logging.info(f"GUI process (PID: {os.getpid()}) pinned to CPU Core {gui_cpu_core}")
-            logging.info(f"  Note: GUI isolated from trading processes (cores 0-10)")
+            logging.info(f"  Note: GUI isolated from trading processes (cores 0-23: C++ clients + Python scripts)")
             
             # Verify the affinity was set correctly
             p = psutil.Process(os.getpid())
@@ -950,25 +888,22 @@ class ArbitrageMonitor(QMainWindow):
         arbitrage_state = self.redis.get('maker_arbitrage_state')
         
         if arbitrage_state == b'stopped' or arbitrage_state is None:
+            # Kill all related processes before starting
+            self.kill_all_related_processes()
+            
             self.redis.set('maker_arbitrage_state', 'starting')
             self.system_control_btn.setText("Starting...")
             self.system_control_btn.setEnabled(False)
-            logging.info("System starting... checking for existing client processes...")
+            logging.info("System starting... checking for C++ WebSocket optimization...")
             
-            # Kill any existing client processes before starting new ones
-            self.kill_existing_client_processes()
+            # Check if C++ optimization is enabled and start C++ client if needed
+            self.start_cpp_websocket_if_needed()
             
-            logging.info("Starting Binance WebSocket clients...")
+            # Small delay to let C++ client initialize
+            time.sleep(2)
             
-            # Start both WebSocket clients in separate terminals
-            self.start_binance_tr_cpp_websocket()
-            self.start_binance_cpp_websocket()
-        
-            
-            # Start arbitrage core scripts
-            logging.info("Starting arbitrage core scripts...")
-            self.start_arbitrage_scripts()
-            
+            logging.info("Starting arbit_core.py in new terminal window")
+            self.start_arbitrage_local()    
         elif arbitrage_state == b'running':
             self.redis.set('maker_arbitrage_state', 'stopping')
             self.system_control_btn.setText("Stopping...")
@@ -1002,287 +937,7 @@ class ArbitrageMonitor(QMainWindow):
         except Exception as e:
             logging.error(f"Error sending enable/disable orders command to Redis: {e}")
 
-    def start_binance_tr_cpp_websocket(self):
-        """Start Binance TR C++ WebSocket client in a separate terminal window (always runs)"""
-        try:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            
-            # Generate symbol-to-index mapping before starting client
-            mapping_script = os.path.join(current_dir, "create_symbol_mappings.py")
-            if os.path.exists(mapping_script):
-                try:
-                    logging.info("Generating symbol-to-index mappings for shared memory...")
-                    result = subprocess.run(
-                        [sys.executable, mapping_script],
-                        cwd=current_dir,
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    if result.returncode == 0:
-                        logging.info("✓ Successfully generated symbol mappings")
-                        if result.stdout:
-                            logging.info(result.stdout)
-                    else:
-                        logging.warning(f"Failed to generate symbol mappings: {result.stderr}")
-                except Exception as e:
-                    logging.warning(f"Error generating symbol mappings: {e}")
-            
-            binance_tr_cpp_startup_script = os.path.join(current_dir, "start_binance_tr_websocket.sh")
-            
-            if os.path.exists(binance_tr_cpp_startup_script):
-                # Make sure it's executable
-                os.chmod(binance_tr_cpp_startup_script, 0o755)
-                
-                # Start Binance TR C++ WebSocket client in a new terminal window
-                cmd_command = (
-                    f'gnome-terminal --title="Binance TR C++ WebSocket Client" -- bash -c "'
-                    f'cd "{current_dir}" && '
-                    f'"{binance_tr_cpp_startup_script}"; '
-                    f'exec bash"'
-                )
-                
-                logging.info(f"Starting Binance TR C++ WebSocket client: {cmd_command}")
-                
-                # Execute command in a new terminal window
-                self.cpp_binance_tr_process = subprocess.Popen(
-                    cmd_command,
-                    shell=True
-                )
-                
-                logging.info("Binance TR C++ WebSocket client started in new terminal window")
-                logging.info("Waiting 2 seconds for Binance TR C++ client to initialize...")
-                time.sleep(2)  # Give C++ client time to start
-            else:
-                logging.warning(f"Binance TR C++ startup script not found: {binance_tr_cpp_startup_script}")
-                logging.warning("Binance TR client will not start")
-        except Exception as e:
-            logging.error(f"Error starting Binance TR C++ WebSocket client: {e}")
-            import traceback
-            logging.error(traceback.format_exc())
-
-    def start_binance_cpp_websocket(self):
-        """Start Binance CS C++ WebSocket client in a separate terminal window (always runs)"""
-        try:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            
-            # Generate binance_websocket_instruments.json from common_symbol_info.json
-            generate_script = os.path.join(current_dir, "create_binance_instruments_from_common.py")
-            if os.path.exists(generate_script):
-                try:
-                    logging.info("Generating binance_websocket_instruments.json from common_symbol_info.json...")
-                    result = subprocess.run(
-                        [sys.executable, generate_script],
-                        cwd=current_dir,
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    if result.returncode == 0:
-                        logging.info("✓ Successfully generated binance_websocket_instruments.json")
-                        if result.stdout:
-                            logging.info(result.stdout)
-                    else:
-                        logging.warning(f"Failed to generate instruments file: {result.stderr}")
-                except Exception as e:
-                    logging.warning(f"Error generating instruments file: {e}")
-            
-            # Generate symbol-to-index mapping for shared memory (after instruments file is created)
-            mapping_script = os.path.join(current_dir, "create_symbol_mappings.py")
-            if os.path.exists(mapping_script):
-                try:
-                    logging.info("Generating symbol-to-index mappings for shared memory...")
-                    result = subprocess.run(
-                        [sys.executable, mapping_script],
-                        cwd=current_dir,
-                        capture_output=True,
-                        text=True,
-                        timeout=30
-                    )
-                    if result.returncode == 0:
-                        logging.info("✓ Successfully generated symbol mappings")
-                        if result.stdout:
-                            logging.info(result.stdout)
-                    else:
-                        logging.warning(f"Failed to generate symbol mappings: {result.stderr}")
-                except Exception as e:
-                    logging.warning(f"Error generating symbol mappings: {e}")
-            
-            # Check healthy CS hosts before starting clients
-            try:
-                import CS_host_health_distribution as CS_health
-                CS_INSTRUMENTS_MAP = arbit_config_maker.cs_instruments_map
-                
-                if CS_INSTRUMENTS_MAP:
-                    # Get all available hosts
-                    all_hosts = CS_health.get_all_available_hosts(CS_INSTRUMENTS_MAP)
-                    logging.info(f"GUI: Found {len(all_hosts)} available CS host(s): {all_hosts}")
-                    
-                    # Perform health checks
-                    import asyncio
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    healthy_hosts, unhealthy_hosts = loop.run_until_complete(
-                        CS_health.check_hosts_health(all_hosts, timeout=5.0)
-                    )
-                    loop.close()
-                    
-                    if not healthy_hosts:
-                        logging.warning("GUI: No healthy CS hosts found from health checks, using default hosts as fallback")
-                        # Fall through to default hosts logic below
-                        hosts_to_use = []
-                    else:
-                        # Use first 2 healthy hosts (or all if less than 2)
-                        hosts_to_use = healthy_hosts[:2]
-                        logging.info(f"GUI: Selected {len(hosts_to_use)} healthy host(s) for redundancy: {hosts_to_use}")
-                        
-                        # Update instruments file with healthy hosts
-                        instruments_file = os.path.join(current_dir, "binance_websocket_instruments.json")
-                        if os.path.exists(instruments_file):
-                            try:
-                                with open(instruments_file, 'r') as f:
-                                    instruments_data = json.load(f)
-                                instruments_data["hosts"] = hosts_to_use
-                                with open(instruments_file, 'w') as f:
-                                    json.dump(instruments_data, f, indent=2)
-                                logging.info(f"GUI: Updated {instruments_file} with healthy hosts: {hosts_to_use}")
-                            except Exception as e:
-                                logging.warning(f"GUI: Could not update instruments file with healthy hosts: {e}")
-                    
-                    # Path to the Binance startup script
-                    binance_cpp_startup_script = os.path.join(current_dir, "start_binance_websocket.sh")
-                    
-                    if os.path.exists(binance_cpp_startup_script):
-                        # Make sure it's executable
-                        os.chmod(binance_cpp_startup_script, 0o755)
-                        
-                        # Start Binance C++ WebSocket clients in a new terminal window
-                        # Both clients will connect to different healthy hosts and subscribe to all symbols
-                        # Both will write to the same shared memory for redundancy
-                        cmd_command = (
-                            f'gnome-terminal --title="Binance CS C++ WebSocket Clients" -- bash -c "'
-                            f'cd "{current_dir}" && '
-                            f'"{binance_cpp_startup_script}"; '
-                            f'exec bash"'
-                        )
-                        
-                        if hosts_to_use:
-                            logging.info(f"Starting Binance CS C++ WebSocket clients (redundancy mode): {cmd_command}")
-                            logging.info(f"  - {len(hosts_to_use)} client(s) will connect to: {hosts_to_use}")
-                        else:
-                            logging.info(f"Starting Binance CS C++ WebSocket clients with default hosts: {cmd_command}")
-                        
-                        # Execute command in a new terminal window
-                        self.cpp_binance_process = subprocess.Popen(
-                            cmd_command,
-                            shell=True
-                        )
-                        
-                        logging.info(f"Binance CS C++ WebSocket clients started in new terminal window")
-                        logging.info(f"  - Both clients will subscribe to ALL symbols")
-                        logging.info(f"  - Both clients will write to the same shared memory for redundancy")
-                        logging.info("Waiting 3 seconds for Binance CS C++ clients to initialize...")
-                        time.sleep(3)  # Give C++ clients time to start
-                    else:
-                        logging.warning(f"Binance CS C++ startup script not found: {binance_cpp_startup_script}")
-                        logging.warning("Binance CS client will not start")
-                else:
-                    logging.warning("GUI: CS_INSTRUMENTS_MAP is empty, cannot check healthy hosts")
-                    logging.info("GUI: Starting Binance CS client with default hosts from startup script")
-                    
-                    # Start Binance CS client with default hosts (from startup script)
-                    binance_cpp_startup_script = os.path.join(current_dir, "start_binance_websocket.sh")
-                    
-                    # Resolve absolute path
-                    binance_cpp_startup_script = os.path.abspath(binance_cpp_startup_script)
-                    logging.info(f"GUI: Looking for Binance CS startup script at: {binance_cpp_startup_script}")
-                    logging.info(f"GUI: Current directory: {current_dir}")
-                    
-                    if os.path.exists(binance_cpp_startup_script):
-                        # Make sure it's executable
-                        os.chmod(binance_cpp_startup_script, 0o755)
-                        logging.info(f"GUI: Found Binance CS startup script: {binance_cpp_startup_script}")
-                        
-                        # Start Binance C++ WebSocket clients in a new terminal window
-                        cmd_command = (
-                            f'gnome-terminal --title="Binance CS C++ WebSocket Clients" -- bash -c "'
-                            f'cd "{current_dir}" && '
-                            f'"{binance_cpp_startup_script}"; '
-                            f'exec bash"'
-                        )
-                        
-                        logging.info(f"Starting Binance CS C++ WebSocket clients with default hosts: {cmd_command}")
-                        
-                        # Execute command in a new terminal window
-                        self.cpp_binance_process = subprocess.Popen(
-                            cmd_command,
-                            shell=True
-                        )
-                        
-                        logging.info("Binance CS C++ WebSocket clients started in new terminal window (using default hosts)")
-                        logging.info("Waiting 3 seconds for Binance CS C++ clients to initialize...")
-                        time.sleep(3)  # Give C++ clients time to start
-                    else:
-                        # Try alternative paths
-                        alt_paths = [
-                            os.path.join(current_dir, "start_binance_websocket.sh"),
-                            "start_binance_websocket.sh",
-                            os.path.abspath("start_binance_websocket.sh")
-                        ]
-                        found = False
-                        for alt_path in alt_paths:
-                            if os.path.exists(alt_path):
-                                logging.info(f"GUI: Found Binance CS startup script at alternative path: {alt_path}")
-                                os.chmod(alt_path, 0o755)
-                                binance_cpp_startup_script = alt_path
-                                found = True
-                                break
-                        
-                        if found:
-                            cmd_command = (
-                                f'gnome-terminal --title="Binance CS C++ WebSocket Clients" -- bash -c "'
-                                f'cd "{current_dir}" && '
-                                f'"{binance_cpp_startup_script}"; '
-                                f'exec bash"'
-                            )
-                            logging.info(f"Starting Binance CS C++ WebSocket clients with default hosts: {cmd_command}")
-                            self.cpp_binance_process = subprocess.Popen(cmd_command, shell=True)
-                            logging.info("Binance CS C++ WebSocket clients started in new terminal window (using default hosts)")
-                            logging.info("Waiting 3 seconds for Binance CS C++ clients to initialize...")
-                            time.sleep(3)
-                        else:
-                            logging.error(f"Binance CS C++ startup script not found at any of these paths:")
-                            for alt_path in alt_paths:
-                                logging.error(f"  - {alt_path}")
-                            logging.warning("Binance CS client will not start")
-            except Exception as e:
-                logging.warning(f"GUI: Error checking healthy CS hosts: {e}")
-                import traceback
-                logging.warning(traceback.format_exc())
-                logging.warning("GUI: Starting Binance CS client with default hosts as fallback...")
-                
-                # Fallback: Start Binance CS client with default hosts if health checks fail
-                binance_cpp_startup_script = os.path.join(current_dir, "start_binance_websocket.sh")
-                if os.path.exists(binance_cpp_startup_script):
-                    os.chmod(binance_cpp_startup_script, 0o755)
-                    cmd_command = (
-                        f'gnome-terminal --title="Binance CS C++ WebSocket Clients (Fallback)" -- bash -c "'
-                        f'cd "{current_dir}" && '
-                        f'"{binance_cpp_startup_script}"; '
-                        f'exec bash"'
-                    )
-                    self.cpp_binance_process = subprocess.Popen(cmd_command, shell=True)
-                    logging.info("Binance CS C++ WebSocket clients started in new terminal window (fallback mode)")
-                    time.sleep(3)
-                else:
-                    logging.error(f"Fallback: Binance CS C++ startup script not found: {binance_cpp_startup_script}")
-                    logging.warning("Fallback: Binance CS client will not start")
-        except Exception as e:
-            logging.error(f"Error starting Binance CS C++ WebSocket client: {e}")
-            import traceback
-            logging.error(traceback.format_exc())
-
-    def start_cpp_websocket_if_needed_OLD(self):
+    def start_cpp_websocket_if_needed(self):
         """Start C++ WebSocket clients if USE_CPP_OPTIMIZATION is enabled"""
         try:
             # Read collocation value from Redis at the start
@@ -1299,57 +954,86 @@ class ArbitrageMonitor(QMainWindow):
             
             # Get the current file's directory
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            core_script = os.path.join(current_dir, "arbit_core_maker_HFT_1.py")
+            core_script = os.path.join(current_dir, "arbit_core_maker_BTR_1.py")
             
             # Check if USE_CPP_OPTIMIZATION is enabled
             try:
                 with open(core_script, 'r') as f:
                     content = f.read()
                     
-                    # Start BTCTURK C++ WebSocket client if enabled
-                    if 'USE_CPP_OPTIMIZATION = True' in content:
-                        logging.info("C++ WebSocket optimization is enabled, starting BTCTURK C++ client...")
+                    # Always start EXCHANGE C++ WebSocket client (Binance TR)
+                    logging.info("Starting EXCHANGE C++ WebSocket client (Binance TR)...")
+                    
+                    # Path to the startup script
+                    cpp_startup_script = os.path.join(current_dir, "start_binance_tr_websocket.sh")
+                    
+                    if os.path.exists(cpp_startup_script):
+                        # Make sure it's executable
+                        os.chmod(cpp_startup_script, 0o755)
                         
-                        # Path to the startup script
-                        cpp_startup_script = os.path.join(current_dir, "start_btcturk_cpp_websocket.sh")
+                        # Start C++ WebSocket client in a new terminal window
+                        # Keep terminal open after process exits (same behavior as Python scripts)
+                        cmd_command = (
+                            f'gnome-terminal --title="EXCHANGE C++ WebSocket Client (Binance TR)" -- bash -c "'
+                            f'cd "{current_dir}" && '
+                            f'"{cpp_startup_script}"; '
+                            f'exec bash"'
+                        )
                         
-                        if os.path.exists(cpp_startup_script):
-                            # Make sure it's executable
-                            os.chmod(cpp_startup_script, 0o755)
-                            
-                            # Start C++ WebSocket client in a new terminal window
-                            # Keep terminal open after process exits (same behavior as Python scripts)
-                            cmd_command = (
-                                f'gnome-terminal --title="BTCTURK C++ WebSocket Client" -- bash -c "'
-                                f'cd "{current_dir}" && '
-                                f'"{cpp_startup_script}"; '
-                                f'exec bash"'
-                            )
-                            
-                            logging.info(f"Starting BTCTURK C++ WebSocket client: {cmd_command}")
-                            
-                            # Execute command in a new terminal window
-                            self.cpp_btcturk_process = subprocess.Popen(
-                                cmd_command,
-                                shell=True
-                            )
-                            
-                            logging.info("BTCTURK C++ WebSocket client started in new terminal window")
-                            logging.info("Waiting 2 seconds for BTCTURK C++ client to initialize...")
-                            time.sleep(2)  # Give C++ client time to start
-                        else:
-                            logging.warning(f"BTCTURK C++ startup script not found: {cpp_startup_script}")
-                            logging.warning("Falling back to regular WebSocket connection")
+                        logging.info(f"Starting EXCHANGE C++ WebSocket client: {cmd_command}")
+                        
+                        # Execute command in a new terminal window
+                        self.cpp_EXCHANGE_process = subprocess.Popen(
+                            cmd_command,
+                            shell=True
+                        )
+                        
+                        logging.info("EXCHANGE C++ WebSocket client started in new terminal window")
+                        logging.info("Waiting 2 seconds for EXCHANGE C++ client to initialize...")
+                        time.sleep(2)  # Give C++ client time to start
                     else:
-                        logging.info("C++ WebSocket optimization is disabled, using regular WebSocket")
+                        logging.error(f"EXCHANGE C++ startup script not found: {cpp_startup_script}")
+                        logging.error("Cannot start EXCHANGE C++ WebSocket client!")
                     
-                    # Start Binance C++ WebSocket client (always start for monitoring)
-                    # Note: If collocation == 0, standard binance_websocket_ticker will also be used
+                    # Start Binance CS C++ WebSocket client
+                    # Always start binance_cs_ws_client (Binance CS C++ client)
+                    logging.info("Starting Binance CS C++ WebSocket client...")
+                    
+                    # Path to the Binance CS startup script
+                    binance_cs_startup_script = os.path.join(current_dir, "start_binance_websocket.sh")
+                    
+                    if os.path.exists(binance_cs_startup_script):
+                        # Make sure it's executable
+                        os.chmod(binance_cs_startup_script, 0o755)
+                        
+                        # Start Binance CS C++ WebSocket client in a new terminal window
+                        cmd_command = (
+                            f'gnome-terminal --title="Binance CS C++ WebSocket Client" -- bash -c "'
+                            f'cd "{current_dir}" && '
+                            f'"{binance_cs_startup_script}"; '
+                            f'exec bash"'
+                        )
+                        
+                        logging.info(f"Starting Binance CS C++ WebSocket client: {cmd_command}")
+                        
+                        # Execute command in a new terminal window
+                        self.cpp_binance_cs_process = subprocess.Popen(
+                            cmd_command,
+                            shell=True
+                        )
+                        
+                        logging.info("Binance CS C++ WebSocket client started in new terminal window")
+                        logging.info("Waiting 3 seconds for Binance CS C++ client to initialize...")
+                        time.sleep(3)  # Give C++ client time to start
+                    else:
+                        logging.warning(f"Binance CS C++ startup script not found: {binance_cs_startup_script}")
+                        logging.warning("Falling back to regular Binance WebSocket connection")
+                    
+                    # Additional Binance C++ WebSocket client for collocation mode (if collocation == 1)
+                    # CRITICAL: Only start if collocation == 1 (if collocation == 0, use standard binance_websocket_ticker)
                     if collocation_value == 0:
-                        logging.info(f"GUI: collocation={collocation_value} - Binance C++ client will start for monitoring (standard binance_websocket_ticker will also be used)")
-                    
-                    # Start Binance CS client regardless of collocation value
-                    if True:  # Always start
+                        logging.info(f"GUI: collocation={collocation_value} - Additional Binance C++ client will NOT start (using standard binance_websocket_ticker)")
+                    elif collocation_value == 1:
                         logging.info("C++ WebSocket optimization for Binance is enabled, starting Binance C++ clients...")
                         
                         # Check healthy CS hosts before starting clients
@@ -1434,42 +1118,64 @@ class ArbitrageMonitor(QMainWindow):
                             import traceback
                             logging.warning(traceback.format_exc())
                             logging.warning("Falling back to regular Binance WebSocket connection")
-                    
-                    # Start Binance TR C++ WebSocket client (always start, regardless of collocation)
-                    binance_tr_cpp_startup_script = os.path.join(current_dir, "start_binance_tr_websocket.sh")
-                    
-                    if os.path.exists(binance_tr_cpp_startup_script):
-                        # Make sure it's executable
-                        os.chmod(binance_tr_cpp_startup_script, 0o755)
-                        
-                        # Start Binance TR C++ WebSocket client in a new terminal window
-                        cmd_command = (
-                            f'gnome-terminal --title="Binance TR C++ WebSocket Client" -- bash -c "'
-                            f'cd "{current_dir}" && '
-                            f'"{binance_tr_cpp_startup_script}"; '
-                            f'exec bash"'
-                        )
-                        
-                        logging.info(f"Starting Binance TR C++ WebSocket client: {cmd_command}")
-                        
-                        # Execute command in a new terminal window
-                        self.cpp_binance_tr_process = subprocess.Popen(
-                            cmd_command,
-                            shell=True
-                        )
-                        
-                        logging.info("Binance TR C++ WebSocket client started in new terminal window")
-                        logging.info("Waiting 2 seconds for Binance TR C++ client to initialize...")
-                        time.sleep(2)  # Give C++ client time to start
-                    else:
-                        logging.warning(f"Binance TR C++ startup script not found: {binance_tr_cpp_startup_script}")
-                        logging.warning("Binance TR client will not start")
             except Exception as e:
                 logging.warning(f"Could not check USE_CPP_OPTIMIZATION setting: {e}")
                 logging.warning("Proceeding with regular WebSocket connection")
         except Exception as e:
             logging.error(f"Error starting C++ WebSocket clients: {e}")
             logging.warning("Proceeding with regular WebSocket connection")
+
+    def kill_all_related_processes(self):
+        """Kill all arbit_core_maker_HFT processes and C++ client processes"""
+        try:
+            logging.info("=" * 80)
+            logging.info("KILLING ALL RELATED PROCESSES")
+            logging.info("=" * 80)
+            print("Killing all related processes...")
+            
+            # Patterns to kill
+            patterns_to_kill = [
+                'arbit_core_maker_BTR',  # All arbit_core_maker_BTR scripts (1, 2, 3, 4, etc.)
+                'EXCHANGE_ws_client',  # EXCHANGE C++ executable
+                'binance_cs_ws_client',  # Binance CS C++ executable
+                'binance_tr_ws_client'  # Binance TR C++ executable (if exists)
+            ]
+            
+            # Step 1: Send SIGTERM (graceful shutdown signal)
+            print("Step 1: Sending SIGTERM (graceful shutdown signal)...")
+            logging.info("Step 1: Sending SIGTERM (graceful shutdown signal)...")
+            for pattern in patterns_to_kill:
+                try:
+                    result = subprocess.run(['pkill', '-TERM', '-f', pattern], timeout=2, check=False, capture_output=True)
+                    if result.returncode == 0:
+                        print(f"  Sent SIGTERM to processes matching: {pattern}")
+                        logging.info(f"  Sent SIGTERM to processes matching: {pattern}")
+                except Exception as e:
+                    logging.debug(f"Error sending SIGTERM for {pattern}: {e}")
+            
+            # Step 2: Wait for graceful shutdown
+            print("Step 2: Waiting 2 seconds for graceful shutdown...")
+            logging.info("Step 2: Waiting 2 seconds for graceful shutdown...")
+            time.sleep(2)
+            
+            # Step 3: Force kill any remaining processes
+            print("Step 3: Force killing any remaining processes...")
+            logging.info("Step 3: Force killing any remaining processes...")
+            for pattern in patterns_to_kill:
+                try:
+                    result = subprocess.run(['pkill', '-9', '-f', pattern], timeout=2, check=False, capture_output=True)
+                    if result.returncode == 0:
+                        print(f"  Force killed processes matching: {pattern}")
+                        logging.info(f"  Force killed processes matching: {pattern}")
+                except Exception as e:
+                    logging.debug(f"Error force killing {pattern}: {e}")
+            
+            print("All related processes killed!")
+            logging.info("All related processes killed!")
+            
+        except Exception as e:
+            logging.error(f"Error killing related processes: {e}")
+            print(f"Error killing related processes: {e}")
 
     def stop_cpp_services(self):
         """Stop all C++ WebSocket services and arbitrage scripts on shutdown"""
@@ -1495,7 +1201,23 @@ class ArbitrageMonitor(QMainWindow):
             # Note: Python scripts will shutdown gracefully themselves after receiving Redis stop command
             # No need to kill them - they handle their own cleanup
             
-            # Stop Binance CS C++ process if we have a reference
+            # Stop EXCHANGE C++ process if we have a reference
+            if self.cpp_EXCHANGE_process is not None:
+                try:
+                    logging.info("Terminating EXCHANGE C++ WebSocket process...")
+                    self.cpp_EXCHANGE_process.terminate()
+                    try:
+                        self.cpp_EXCHANGE_process.wait(timeout=2)
+                        logging.info("EXCHANGE C++ WebSocket process terminated gracefully")
+                    except subprocess.TimeoutExpired:
+                        logging.warning("EXCHANGE C++ WebSocket process did not terminate, forcing kill...")
+                        self.cpp_EXCHANGE_process.kill()
+                        self.cpp_EXCHANGE_process.wait()
+                        logging.info("EXCHANGE C++ WebSocket process killed")
+                except Exception as e:
+                    logging.error(f"Error stopping EXCHANGE C++ process: {e}")
+            
+            # Stop Binance C++ process if we have a reference
             if self.cpp_binance_process is not None:
                 try:
                     logging.info("Terminating Binance C++ WebSocket process...")
@@ -1511,73 +1233,80 @@ class ArbitrageMonitor(QMainWindow):
                 except Exception as e:
                     logging.error(f"Error stopping Binance C++ process: {e}")
             
-            # Stop Binance TR C++ process if we have a reference
-            if self.cpp_binance_tr_process is not None:
+            # Stop Binance CS C++ process if we have a reference
+            if self.cpp_binance_cs_process is not None:
                 try:
-                    logging.info("Terminating Binance TR C++ WebSocket process...")
-                    self.cpp_binance_tr_process.terminate()
+                    logging.info("Terminating Binance CS C++ WebSocket process...")
+                    self.cpp_binance_cs_process.terminate()
                     try:
-                        self.cpp_binance_tr_process.wait(timeout=2)
-                        logging.info("Binance TR C++ WebSocket process terminated gracefully")
+                        self.cpp_binance_cs_process.wait(timeout=2)
+                        logging.info("Binance CS C++ WebSocket process terminated gracefully")
                     except subprocess.TimeoutExpired:
-                        logging.warning("Binance TR C++ WebSocket process did not terminate, forcing kill...")
-                        self.cpp_binance_tr_process.kill()
-                        self.cpp_binance_tr_process.wait()
-                        logging.info("Binance TR C++ WebSocket process killed")
+                        logging.warning("Binance CS C++ WebSocket process did not terminate, forcing kill...")
+                        self.cpp_binance_cs_process.kill()
+                        self.cpp_binance_cs_process.wait()
+                        logging.info("Binance CS C++ WebSocket process killed")
                 except Exception as e:
-                    logging.error(f"Error stopping Binance TR C++ process: {e}")
+                    logging.error(f"Error stopping Binance CS C++ process: {e}")
             
-            # Note: Other Python scripts handle their own shutdown via Redis stop command
+            # Note: Python scripts handle their own shutdown via Redis stop command
             # No need to kill them - they will exit gracefully
             
-            # Kill all C++ websocket processes - graceful shutdown first, then force if needed
+            # Kill all C++ websocket processes - graceful shutdown first (like Ctrl+C), then force if needed
             try:
-                print("Attempting to gracefully shutdown C++ WebSocket processes...")
-                logging.info("Attempting to gracefully shutdown C++ WebSocket processes...")
+                print("Attempting to gracefully shutdown C++ WebSocket processes (sending SIGTERM like Ctrl+C)...")
+                logging.info("Attempting to gracefully shutdown C++ WebSocket processes (sending SIGTERM like Ctrl+C)...")
                 
-                # Method 1: Graceful shutdown - send SIGTERM to all C++ processes
+                # Method 1: Graceful shutdown - send SIGTERM to all C++ processes (like Ctrl+C)
                 # Note: We only kill the actual C++ executables, NOT the terminal windows
                 # Terminal windows will remain open showing the exit message
                 patterns_to_kill = [
-                    'binance_tr_ws_client',  # Binance TR C++ executable
-                    'binance_ws_client',  # Binance CS C++ executable (legacy)
-                    'binance_cs_ws_client',  # Binance CS WebSocket client
-                    'websocket_shm_client',  # Legacy BTCTURK C++ executable
-                    'binance_websocket_shm_client'  # Legacy shared memory client if exists
+                    'EXCHANGE_ws_client',  # EXCHANGE C++ executable (Binance TR)
+                    'binance_cs_ws_client',  # Binance CS C++ executable
+                    'binance_tr_ws_client'  # Binance TR C++ executable (if exists)
                     # Note: We don't kill terminal processes - they should stay open
                 ]
                 
-                # Step 1: Send SIGTERM (graceful shutdown signal)
-                print("Step 1: Sending SIGTERM (graceful shutdown signal)...")
-                logging.info("Step 1: Sending SIGTERM (graceful shutdown signal)...")
+                # Step 1: Send SIGTERM (graceful shutdown signal, like Ctrl+C)
+                print("Step 1: Sending SIGTERM (graceful shutdown signal, like Ctrl+C)...")
+                logging.info("Step 1: Sending SIGTERM (graceful shutdown signal, like Ctrl+C)...")
                 for pattern in patterns_to_kill:
                     try:
+                        # Send SIGTERM to all processes matching the pattern (including child processes)
                         result = subprocess.run(['pkill', '-TERM', '-f', pattern], timeout=2, check=False, capture_output=True)
                         if result.returncode == 0:
                             print(f"  Sent SIGTERM to processes matching: {pattern}")
                             logging.info(f"  Sent SIGTERM to processes matching: {pattern}")
+                        else:
+                            # Check if process exists
+                            check_result = subprocess.run(['pgrep', '-f', pattern], timeout=2, check=False, capture_output=True)
+                            if check_result.returncode == 0:
+                                print(f"  Warning: Could not send SIGTERM to {pattern}, but process exists")
+                                logging.warning(f"  Warning: Could not send SIGTERM to {pattern}, but process exists")
                     except Exception as e:
                         logging.debug(f"Error sending SIGTERM for {pattern}: {e}")
                 
                 # Step 2: Wait for graceful shutdown (give processes time to clean up)
-                # Longer wait for Binance processes to avoid "Resource deadlock avoided" error
-                print("Step 2: Waiting 5 seconds for graceful shutdown...")
-                logging.info("Step 2: Waiting 5 seconds for graceful shutdown...")
-                time.sleep(5)
+                # Longer wait for C++ processes to handle cleanup properly
+                print("Step 2: Waiting 3 seconds for graceful shutdown...")
+                logging.info("Step 2: Waiting 3 seconds for graceful shutdown...")
+                time.sleep(3)
                 
                 # Step 3: Check if processes are still running
-                print("Step 3: Checking if processes are still running...")
-                logging.info("Step 3: Checking if processes are still running...")
+                print("Step 3: Checking if C++ WebSocket processes are still running...")
+                logging.info("Step 3: Checking if C++ WebSocket processes are still running...")
                 still_running = []
-                for pattern in patterns_to_kill[:2]:  # Only check actual C++ processes, not terminals
+                for pattern in patterns_to_kill:
                     try:
                         result = subprocess.run(['pgrep', '-f', pattern], timeout=2, check=False, capture_output=True, text=True)
                         if result.returncode == 0 and result.stdout.strip():
                             pids = [pid.strip() for pid in result.stdout.strip().split('\n') if pid.strip()]
                             if pids:
-                                still_running.extend([(pattern, pids)])
-                    except:
-                        pass
+                                still_running.append((pattern, pids))
+                                print(f"  Found {len(pids)} process(es) still running for {pattern} (PIDs: {', '.join(pids)})")
+                                logging.warning(f"  Found {len(pids)} process(es) still running for {pattern} (PIDs: {', '.join(pids)})")
+                    except Exception as e:
+                        logging.debug(f"Error checking processes for {pattern}: {e}")
                 
                 if still_running:
                     print(f"Step 4: Some processes still running, sending SIGKILL (force kill)...")
@@ -1586,12 +1315,22 @@ class ArbitrageMonitor(QMainWindow):
                         print(f"  Force killing {len(pids)} process(es) matching {pattern} (PIDs: {', '.join(pids)})")
                         logging.warning(f"  Force killing {len(pids)} process(es) matching {pattern} (PIDs: {', '.join(pids)})")
                         try:
-                            subprocess.run(['pkill', '-KILL', '-f', pattern], timeout=2, check=False)
-                        except:
-                            pass
-                    time.sleep(2)
+                            # Force kill with SIGKILL
+                            subprocess.run(['pkill', '-9', '-f', pattern], timeout=2, check=False)
+                            # Also kill child processes
+                            for pid in pids:
+                                try:
+                                    subprocess.run(['pkill', '-9', '-P', pid], timeout=1, check=False)
+                                except:
+                                    pass
+                        except Exception as e:
+                            logging.error(f"Error force killing {pattern}: {e}")
+                    time.sleep(1)
+                    print("Step 5: Force kill completed")
+                    logging.info("Step 5: Force kill completed")
                 else:
-                    print("Step 4: All processes terminated gracefully!")
+                    print("Step 4: All C++ WebSocket processes terminated gracefully!")
+                    logging.info("Step 4: All C++ WebSocket processes terminated gracefully!")
                     logging.info("Step 4: All processes terminated gracefully!")
                 
                 time.sleep(1)
@@ -1599,12 +1338,9 @@ class ArbitrageMonitor(QMainWindow):
                 # Method 2: Fallback - Find any remaining processes by executable path and kill gracefully
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 executable_paths = [
-                    os.path.join(current_dir, 'binance_tr_ws_client'),  # Binance TR client
-                    os.path.join(current_dir, 'binance_ws_client'),  # Binance CS client (legacy)
-                    os.path.join(current_dir, 'binance_cs_ws_client'),  # Binance CS WebSocket client
-                    os.path.join(current_dir, 'build', 'websocket_shm_client'),  # Legacy
-                    os.path.join(current_dir, 'build_binance', 'websocket_shm_client'),  # Legacy
-                    os.path.join(current_dir, 'build_binance', 'binance_websocket_shm_client'),  # Legacy
+                    os.path.join(current_dir, 'build', 'websocket_shm_client'),
+                    os.path.join(current_dir, 'build_binance', 'websocket_shm_client'),
+                    os.path.join(current_dir, 'build_binance', 'binance_websocket_shm_client'),
                 ]
                 
                 remaining_found = False
@@ -1653,22 +1389,18 @@ class ArbitrageMonitor(QMainWindow):
                     try:
                         # Try graceful first
                         subprocess.run(['killall', '-TERM', 'websocket_shm_client'], timeout=2, check=False)
-                        subprocess.run(['killall', '-TERM', 'binance_ws_client'], timeout=2, check=False)
-                        subprocess.run(['killall', '-TERM', 'binance_cs_ws_client'], timeout=2, check=False)
-                        subprocess.run(['killall', '-TERM', 'binance_websocket_shm_client'], timeout=2, check=False)  # Legacy
+                        subprocess.run(['killall', '-TERM', 'binance_websocket_shm_client'], timeout=2, check=False)
                         time.sleep(6)  # Wait for graceful shutdown (especially for Binance to avoid deadlock)
                         # Force kill as last resort
                         subprocess.run(['killall', '-KILL', 'websocket_shm_client'], timeout=2, check=False)
-                        subprocess.run(['killall', '-KILL', 'binance_ws_client'], timeout=2, check=False)
-                        subprocess.run(['killall', '-KILL', 'binance_cs_ws_client'], timeout=2, check=False)
-                        subprocess.run(['killall', '-KILL', 'binance_websocket_shm_client'], timeout=2, check=False)  # Legacy
+                        subprocess.run(['killall', '-KILL', 'binance_websocket_shm_client'], timeout=2, check=False)
                     except:
                         pass
                 
                 # Final verification - wait a bit and check
                 time.sleep(1)
                 final_check = subprocess.run(
-                    ['pgrep', '-f', 'websocket_shm_client|binance_websocket_shm_client|binance_ws_client|binance_tr_ws_client'],
+                    ['pgrep', '-f', 'websocket_shm_client|binance_websocket_shm_client'],
                     capture_output=True,
                     text=True,
                     timeout=2
@@ -1690,88 +1422,23 @@ class ArbitrageMonitor(QMainWindow):
                 print(error_msg)
                 logging.error(error_msg)
                 import traceback
-                traceback.print_exc()
-                
+                tb = traceback.format_exc()
+                print(tb)
+                logging.error(tb)
+            
+            completion_msg = "All services cleanup completed"
+            print(completion_msg)
+            logging.info(completion_msg)
+            
         except Exception as e:
             error_msg = f"Error stopping services: {e}"
             print(error_msg)
             logging.error(error_msg)
             import traceback
-            traceback.print_exc()
-                
-    def start_arbitrage_scripts(self):
-        """Start all available arbit_core_maker_BTR_*.py scripts found in the project folder."""
-        try:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            self.arbitrage_processes = []
-            
-            # Find all arbit_core_maker_BTR_*.py scripts
-            import glob
-            script_pattern = os.path.join(current_dir, "arbit_core_maker_BTR_*.py")
-            script_files = glob.glob(script_pattern)
-            script_files.sort()  # Sort to ensure consistent order (1, 2, 3, ...)
-            
-            if not script_files:
-                logging.warning(f"No arbit_core_maker_BTR scripts found in {current_dir}")
-                return
-            
-            logging.info(f"Found {len(script_files)} arbitrage core script(s): {[os.path.basename(f) for f in script_files]}")
-            
-            for script_path in script_files:
-                script_name = os.path.basename(script_path)
-                
-                # Check if script is already running (optional - to prevent duplicates)
-                try:
-                    # Check if a process with this script is already running
-                    result = subprocess.run(
-                        ['pgrep', '-f', script_name],
-                        capture_output=True,
-                        timeout=2
-                    )
-                    if result.returncode == 0:
-                        logging.warning(f"{script_name} is already running, skipping...")
-                        continue
-                except Exception:
-                    pass  # If pgrep fails, continue anyway
-                
-                # Start arbitrage script in a new terminal window
-                try:
-                    cmd_command = (
-                        f'gnome-terminal --title="{script_name}" -- bash -c "'
-                        f'cd "{current_dir}" && '
-                        f'{sys.executable} "{script_path}"; '
-                        f'exec bash"'
-                    )
-                    
-                    process = subprocess.Popen(
-                        cmd_command,
-                        shell=True
-                    )
-                    self.arbitrage_processes.append({
-                        'process': process,
-                        'script_path': script_path,
-                        'script_name': script_name
-                    })
-                    logging.info(f"Started {script_name} in new terminal window (PID: {process.pid})")
-                    
-                    # Small delay between starting scripts to avoid overwhelming the system
-                    time.sleep(0.5)
-                    
-                except Exception as e:
-                    logging.error(f"Error starting {script_name}: {e}")
-            
-            logging.info(f"Started {len(self.arbitrage_processes)} arbitrage core script(s)")
-            
-            # Wait a bit for scripts to initialize
-            if self.arbitrage_processes:
-                logging.info("Waiting 3 seconds for arbitrage scripts to initialize...")
-                time.sleep(3)
-            
-        except Exception as e:
-            logging.error(f"Error starting arbitrage scripts: {e}")
-            import traceback
-            traceback.print_exc()
-    
+            tb = traceback.format_exc()
+            print(tb)
+            logging.error(tb)
+
     def export_redis_to_csv(self, key_name):
         """
         Connects to Redis, fetches data from specified lists, 
@@ -1785,10 +1452,10 @@ class ArbitrageMonitor(QMainWindow):
 
             # Test connection
             export_redis_connection.ping()
-            logging.info("Successfully connected to Redis for export BINANCE & BTCTURK trade history.")
+            logging.info("Successfully connected to Redis for export BINANCE & EXCHANGE trade history.")
 
-            if key_name == "BTCTURK":
-                key_name = "maker_BTCTURK_trade_history"
+            if key_name == "EXCHANGE":
+                key_name = "maker_EXCHANGE_trade_history"
             elif key_name == "BINANCE":
                 key_name = "maker_BINANCE_trade_history"
             elif key_name == "MOVE":
@@ -1831,35 +1498,35 @@ class ArbitrageMonitor(QMainWindow):
         except Exception as e:
             logging.error(f"An error occurred: {e}", exc_info=True)
 
-    def clear_btcturk_trade_history(self):
-        """Clear BTCTURK trade history from Redis and update GUI table"""
+    def clear_EXCHANGE_trade_history(self):
+        """Clear EXCHANGE trade history from Redis and update GUI table"""
         try:
             # First export history to csv then clear
-            self.export_redis_to_csv("BTCTURK")
+            self.export_redis_to_csv("EXCHANGE")
 
             # Clear data from Redis
-            self.redis.delete('maker_BTCTURK_trade_history')
+            self.redis.delete('maker_EXCHANGE_trade_history')
             
             # Clear GUI table
-            self.btcturk_trade_table.setRowCount(0)
+            self.EXCHANGE_trade_table.setRowCount(0)
             
             # Reset highlighted rows
-            self.btcturk_highlighted_rows = {}
+            self.EXCHANGE_highlighted_rows = {}
             
             # Reset last trade count
-            self.last_btcturk_trade_count = 0
+            self.last_EXCHANGE_trade_count = 0
 
             # Reset trade page
-            global btcturk_history_page_no
-            btcturk_history_page_no = 1
+            global EXCHANGE_history_page_no
+            EXCHANGE_history_page_no = 1
             
             # Show success message
-            QMessageBox.information(self, "Success", "BTCTURK trade history cleared")
-            self.statusBar().showMessage("BTCTURK trade history cleared")
+            QMessageBox.information(self, "Success", "EXCHANGE trade history cleared")
+            self.statusBar().showMessage("EXCHANGE trade history cleared")
             
         except Exception as e:
-            logging.error(f"Error clearing BTCTURK trade history: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to clear BTCTURK trade history: {e}")
+            logging.error(f"Error clearing EXCHANGE trade history: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to clear EXCHANGE trade history: {e}")
 
     def clear_binance_trade_history(self):
         """Clear BINANCE trade history from Redis and update GUI table"""
@@ -1921,27 +1588,27 @@ class ArbitrageMonitor(QMainWindow):
         """Clear trade history from Redis and update GUI tables"""
         # Clear data from Redis
         self.redis.delete('maker_BINANCE_trade_history')
-        self.redis.delete('maker_BTCTURK_trade_history')
+        self.redis.delete('maker_EXCHANGE_trade_history')
         self.redis.delete('maker_move_history')
         
         # Clear GUI tables
-        self.btcturk_trade_table.setRowCount(0)
+        self.EXCHANGE_trade_table.setRowCount(0)
         self.binance_trade_table.setRowCount(0)
         self.move_history_table.setRowCount(0)
         
         # Reset highlighted rows
-        self.btcturk_highlighted_rows = {}
+        self.EXCHANGE_highlighted_rows = {}
         self.binance_highlighted_rows = {}
         
         # Reset last trade counts
-        self.last_btcturk_trade_count = 0
+        self.last_EXCHANGE_trade_count = 0
         self.last_binance_trade_count = 0
 
         # Reset trade pages
-        global btcturk_history_page_no
+        global EXCHANGE_history_page_no
         global binance_history_page_no
 
-        btcturk_history_page_no = 1
+        EXCHANGE_history_page_no = 1
         binance_history_page_no = 1
         
         # Show success message
@@ -1954,7 +1621,7 @@ class ArbitrageMonitor(QMainWindow):
 
             logging.info(f"Account type: {self.account_type}")
 
-            self.BTCTURK_MAKER_balances = arbit_config_maker.fetch_BTCTURK_balance(self.account_type)
+            self.EXCHANGE_MAKER_balances = arbit_config_maker.fetch_EXCHANGE_balance(self.account_type)
 
             self.redis.publish('arbit_commands', b'update_balances')
            
@@ -1976,7 +1643,72 @@ class ArbitrageMonitor(QMainWindow):
             logging.error(f"Error sending cancel all orders command to Redis: {e}")
             self.statusBar().showMessage(f"Error: {str(e)}", 3000)
 
-
+    def start_arbitrage_local(self):
+        """Start the distributed arbitrage system locally"""
+        try:
+            # Get the current file's directory
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            # Try .venv first, then venv, then system python3
+            venv_python = os.path.join(current_dir, ".venv", "bin", "python")
+            if not os.path.exists(venv_python):
+                venv_python = os.path.join(current_dir, "venv", "bin", "python")
+            if not os.path.exists(venv_python):
+                venv_python = "/usr/bin/python3"  # Fallback to system python3
+            
+            # Define all script paths (all 10 arbitrage core scripts)
+            script_paths = [
+                os.path.join(current_dir, "arbit_core_maker_BTR_1.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_2.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_3.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_4.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_5.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_6.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_7.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_8.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_9.py"),
+                os.path.join(current_dir, "arbit_core_maker_BTR_10.py"),
+            ]
+            
+            # Log the paths
+            logging.info(f"Current directory: {current_dir}")
+            logging.info(f"Python path: {venv_python}")
+            
+            # Start each script in a separate terminal window
+            for i, script_path in enumerate(script_paths, 1):
+                if os.path.exists(script_path):
+                    # Command to open a new terminal window and run the script
+                    # Keep terminal open after script exits (same behavior as C++ terminals)
+                    cmd_command = (
+                        f'gnome-terminal --title="Arbitrage Script {i}" -- bash -c "'
+                        f'cd "{current_dir}" && '
+                        f'"{venv_python}" "{script_path}"; '
+                        f'exec bash"'
+                    )
+                    
+                    logging.info(f"Starting Script {i}: {cmd_command}")
+                    
+                    # Execute command in a new terminal window
+                    process = subprocess.Popen(
+                        cmd_command,
+                        shell=True
+                    )
+                    
+                    # Store process reference for cleanup
+                    self.arbitrage_processes.append(process)
+                    
+                    logging.info(f"Started Script {i} in new terminal window")
+                    
+                    # Small delay between starting scripts to avoid overwhelming the system
+                    if i < len(script_paths):
+                        time.sleep(0.5)  # 500ms delay between script starts
+                else:
+                    logging.warning(f"Script {i} not found: {script_path}")
+            
+            logging.info(f"Started distributed arbitrage system with {len([s for s in script_paths if os.path.exists(s)])} scripts")
+            
+        except Exception as e:
+            logging.error(f"Error starting arbitrage scripts: {e}")
+            
     def setup_monitoring_page(self):
         """Set up the monitoring page"""
         # Create layout for monitoring page
@@ -2041,7 +1773,7 @@ class ArbitrageMonitor(QMainWindow):
         
         # Get symbol count from Redis
         try:
-            symbols_data = self.redis.get('maker_Symbol_List')
+            symbols_data = self.redis.get('EXCHANGE_Symbol_List')
             symbol_count = len(json.loads(symbols_data.decode('utf-8'))) if symbols_data else 0
         except Exception as e:
             logging.error(f"Error getting symbol count: {e}")
@@ -2061,7 +1793,9 @@ class ArbitrageMonitor(QMainWindow):
         
         # Create open trade table
         self.open_trade_table = QTableWidget()
-        self.setup_table(self.open_trade_table, self.open_trade_columns)
+        # Create display name mapping for column headers
+        open_trade_display_columns = [col.replace('binance_absolute_time_diff', 'Binance Abs Time Diff(ms)') for col in self.open_trade_columns]
+        self.setup_table(self.open_trade_table, open_trade_display_columns)
         # Connect manual selection tracking
         self.open_trade_table.selectionModel().selectionChanged.connect(self.manual_track_open_selection)
         open_trade_layout.addWidget(self.open_trade_table)
@@ -2069,51 +1803,51 @@ class ArbitrageMonitor(QMainWindow):
         # Restore column order for open trade table
         self.restore_column_order(self.open_trade_table)
 
-        # Create BTCTURK trade history table
-        btcturk_trade_widget = QWidget()
-        btcturk_trade_layout = QVBoxLayout(btcturk_trade_widget)
-        btcturk_trade_layout.setContentsMargins(0, 0, 0, 0)
+        # Create EXCHANGE trade history table
+        EXCHANGE_trade_widget = QWidget()
+        EXCHANGE_trade_layout = QVBoxLayout(EXCHANGE_trade_widget)
+        EXCHANGE_trade_layout.setContentsMargins(0, 0, 0, 0)
         
         # Create header with title and pagination controls
-        btcturk_trade_header = QWidget()
-        btcturk_trade_header.setStyleSheet("background-color: #444444;")
-        btcturk_trade_header_layout = QHBoxLayout(btcturk_trade_header)
-        btcturk_trade_header_layout.setContentsMargins(5, 5, 5, 5)
+        EXCHANGE_trade_header = QWidget()
+        EXCHANGE_trade_header.setStyleSheet("background-color: #444444;")
+        EXCHANGE_trade_header_layout = QHBoxLayout(EXCHANGE_trade_header)
+        EXCHANGE_trade_header_layout.setContentsMargins(5, 5, 5, 5)
         
         # Add title label at the left
-        btcturk_trade_label = QLabel("BTCTURK TRADE HISTORY")
-        btcturk_trade_label.setStyleSheet("font-weight: bold; color: white; padding: 5px;")
-        btcturk_trade_header_layout.addWidget(btcturk_trade_label)
+        EXCHANGE_trade_label = QLabel("EXCHANGE TRADE HISTORY")
+        EXCHANGE_trade_label.setStyleSheet("font-weight: bold; color: white; padding: 5px;")
+        EXCHANGE_trade_header_layout.addWidget(EXCHANGE_trade_label)
         
         # Add spacer to push pagination controls to the right
-        btcturk_trade_header_layout.addStretch(1)
+        EXCHANGE_trade_header_layout.addStretch(1)
         
         # Add pagination controls
-        global btcturk_history_page_size
-        btcturk_history_page_size = self.redis.llen('maker_BTCTURK_trade_history') // 100
-        self.btcturk_page_label = QLabel(f"Page 1 of {btcturk_history_page_size}")
-        self.btcturk_page_label.setStyleSheet("color: white;")
-        btcturk_trade_header_layout.addWidget(self.btcturk_page_label)
+        global EXCHANGE_history_page_size
+        EXCHANGE_history_page_size = self.redis.llen('maker_EXCHANGE_trade_history') // 100
+        self.EXCHANGE_page_label = QLabel(f"Page 1 of {EXCHANGE_history_page_size}")
+        self.EXCHANGE_page_label.setStyleSheet("color: white;")
+        EXCHANGE_trade_header_layout.addWidget(self.EXCHANGE_page_label)
         
         pagination_layout = QHBoxLayout()
         pagination_layout.setSpacing(2)
         
-        self.btcturk_prev_btn = QPushButton("◄")
-        self.btcturk_prev_btn.setFixedSize(30, 25)
-        self.btcturk_prev_btn.clicked.connect(lambda: self.change_btcturk_page(-1))
-        self.btcturk_prev_btn.setStyleSheet("background-color: #555555; color: white; border: 1px solid #666666;")
-        btcturk_trade_header_layout.addWidget(self.btcturk_prev_btn)
+        self.EXCHANGE_prev_btn = QPushButton("◄")
+        self.EXCHANGE_prev_btn.setFixedSize(30, 25)
+        self.EXCHANGE_prev_btn.clicked.connect(lambda: self.change_EXCHANGE_page(-1))
+        self.EXCHANGE_prev_btn.setStyleSheet("background-color: #555555; color: white; border: 1px solid #666666;")
+        EXCHANGE_trade_header_layout.addWidget(self.EXCHANGE_prev_btn)
         
-        self.btcturk_next_btn = QPushButton("►")
-        self.btcturk_next_btn.setFixedSize(30, 25)
-        self.btcturk_next_btn.clicked.connect(lambda: self.change_btcturk_page(1))
-        self.btcturk_next_btn.setStyleSheet("background-color: #555555; color: white; border: 1px solid #666666;")
-        btcturk_trade_header_layout.addWidget(self.btcturk_next_btn)
+        self.EXCHANGE_next_btn = QPushButton("►")
+        self.EXCHANGE_next_btn.setFixedSize(30, 25)
+        self.EXCHANGE_next_btn.clicked.connect(lambda: self.change_EXCHANGE_page(1))
+        self.EXCHANGE_next_btn.setStyleSheet("background-color: #555555; color: white; border: 1px solid #666666;")
+        EXCHANGE_trade_header_layout.addWidget(self.EXCHANGE_next_btn)
         
-        self.btcturk_reset_btn = QPushButton("Reset")
-        self.btcturk_reset_btn.setFixedWidth(50)
-        self.btcturk_reset_btn.clicked.connect(self.reset_btcturk_page)
-        self.btcturk_reset_btn.setStyleSheet("""
+        self.EXCHANGE_reset_btn = QPushButton("Reset")
+        self.EXCHANGE_reset_btn.setFixedWidth(50)
+        self.EXCHANGE_reset_btn.clicked.connect(self.reset_EXCHANGE_page)
+        self.EXCHANGE_reset_btn.setStyleSheet("""
             QPushButton {
                 background-color: #555555; 
                 color: white; 
@@ -2124,13 +1858,13 @@ class ArbitrageMonitor(QMainWindow):
                 border: 1px solid #888888;
             }
         """)
-        btcturk_trade_header_layout.addWidget(self.btcturk_reset_btn)
+        EXCHANGE_trade_header_layout.addWidget(self.EXCHANGE_reset_btn)
         
-        # Add export and clear buttons for BTCTURK
-        self.btcturk_export_btn = QPushButton("Export")
-        self.btcturk_export_btn.setFixedWidth(60)
-        self.btcturk_export_btn.clicked.connect(lambda: self.export_redis_to_csv("BTCTURK"))
-        self.btcturk_export_btn.setStyleSheet("""
+        # Add export and clear buttons for EXCHANGE
+        self.EXCHANGE_export_btn = QPushButton("Export")
+        self.EXCHANGE_export_btn.setFixedWidth(60)
+        self.EXCHANGE_export_btn.clicked.connect(lambda: self.export_redis_to_csv("EXCHANGE"))
+        self.EXCHANGE_export_btn.setStyleSheet("""
             QPushButton {
                 background-color: #cc6600; 
                 color: white; 
@@ -2141,12 +1875,12 @@ class ArbitrageMonitor(QMainWindow):
                 border: 1px solid #ff8800;
             }
         """)
-        btcturk_trade_header_layout.addWidget(self.btcturk_export_btn)
+        EXCHANGE_trade_header_layout.addWidget(self.EXCHANGE_export_btn)
         
-        self.btcturk_clear_btn = QPushButton("Clear")
-        self.btcturk_clear_btn.setFixedWidth(60)
-        self.btcturk_clear_btn.clicked.connect(self.clear_btcturk_trade_history)
-        self.btcturk_clear_btn.setStyleSheet("""
+        self.EXCHANGE_clear_btn = QPushButton("Clear")
+        self.EXCHANGE_clear_btn.setFixedWidth(60)
+        self.EXCHANGE_clear_btn.clicked.connect(self.clear_EXCHANGE_trade_history)
+        self.EXCHANGE_clear_btn.setStyleSheet("""
             QPushButton {
                 background-color: #cc0000; 
                 color: white; 
@@ -2157,53 +1891,53 @@ class ArbitrageMonitor(QMainWindow):
                 border: 1px solid #ff0000;
             }
         """)
-        btcturk_trade_header_layout.addWidget(self.btcturk_clear_btn)
+        EXCHANGE_trade_header_layout.addWidget(self.EXCHANGE_clear_btn)
         
-        # Add header to BTCTURK trade layout
-        btcturk_trade_layout.addWidget(btcturk_trade_header)
+        # Add header to EXCHANGE trade layout
+        EXCHANGE_trade_layout.addWidget(EXCHANGE_trade_header)
         
-        # Create BTCTURK trade table
-        self.btcturk_trade_table = QTableWidget()
-        self.setup_table(self.btcturk_trade_table, maker_BTCTURK_trade_history_columns)
-        btcturk_trade_layout.addWidget(self.btcturk_trade_table)
+        # Create EXCHANGE trade table
+        self.EXCHANGE_trade_table = QTableWidget()
+        self.setup_table(self.EXCHANGE_trade_table, maker_EXCHANGE_trade_history_columns)
+        EXCHANGE_trade_layout.addWidget(self.EXCHANGE_trade_table)
         
-        # Restore column order for BTCTURK trade table
-        self.restore_column_order(self.btcturk_trade_table)
+        # Restore column order for EXCHANGE trade table
+        self.restore_column_order(self.EXCHANGE_trade_table)
 
-        # Create BTCTURK trade open orders table
-        btcturk_open_orders_widget = QWidget()
-        btcturk_open_orders_layout = QVBoxLayout(btcturk_open_orders_widget)
-        btcturk_open_orders_layout.setContentsMargins(0, 0, 0, 0)
+        # Create EXCHANGE trade open orders table
+        EXCHANGE_open_orders_widget = QWidget()
+        EXCHANGE_open_orders_layout = QVBoxLayout(EXCHANGE_open_orders_widget)
+        EXCHANGE_open_orders_layout.setContentsMargins(0, 0, 0, 0)
 
         # Create header with title and search bar that spans the entire width
-        btcturk_open_orders_header = QWidget()
-        btcturk_open_orders_header.setStyleSheet("background-color: #444444;")
-        btcturk_open_orders_header_layout = QHBoxLayout(btcturk_open_orders_header)
-        btcturk_open_orders_header_layout.setContentsMargins(5, 5, 5, 5)
+        EXCHANGE_open_orders_header = QWidget()
+        EXCHANGE_open_orders_header.setStyleSheet("background-color: #444444;")
+        EXCHANGE_open_orders_header_layout = QHBoxLayout(EXCHANGE_open_orders_header)
+        EXCHANGE_open_orders_header_layout.setContentsMargins(5, 5, 5, 5)
 
         # Add search functionality at the left
         search_label = QLabel("Search:")
         search_label.setStyleSheet("color: white;")
-        btcturk_open_orders_header_layout.addWidget(search_label)
+        EXCHANGE_open_orders_header_layout.addWidget(search_label)
         
-        self.btcturk_open_orders_search_input = QLineEdit()
-        self.btcturk_open_orders_search_input.setPlaceholderText("Type to search...")
-        self.btcturk_open_orders_search_input.textChanged.connect(self.filter_btcturk_open_orders)
-        self.btcturk_open_orders_search_input.textEdited.connect(self.convert_to_uppercase)
-        self.btcturk_open_orders_search_input.setMaximumWidth(150)
-        self.btcturk_open_orders_search_input.setStyleSheet("background-color: #555555; color: white; border: 1px solid #666666;")
-        btcturk_open_orders_header_layout.addWidget(self.btcturk_open_orders_search_input)
+        self.EXCHANGE_open_orders_search_input = QLineEdit()
+        self.EXCHANGE_open_orders_search_input.setPlaceholderText("Type to search...")
+        self.EXCHANGE_open_orders_search_input.textChanged.connect(self.filter_EXCHANGE_open_orders)
+        self.EXCHANGE_open_orders_search_input.textEdited.connect(self.convert_to_uppercase)
+        self.EXCHANGE_open_orders_search_input.setMaximumWidth(150)
+        self.EXCHANGE_open_orders_search_input.setStyleSheet("background-color: #555555; color: white; border: 1px solid #666666;")
+        EXCHANGE_open_orders_header_layout.addWidget(self.EXCHANGE_open_orders_search_input)
 
         # Add clear button
         clear_button = QPushButton("Clear")
         clear_button.setMaximumWidth(60)
-        clear_button.clicked.connect(lambda: self.btcturk_open_orders_search_input.clear())
+        clear_button.clicked.connect(lambda: self.EXCHANGE_open_orders_search_input.clear())
         clear_button.setStyleSheet("background-color: #555555; color: white; border: 1px solid #666666;")
-        btcturk_open_orders_header_layout.addWidget(clear_button)
+        EXCHANGE_open_orders_header_layout.addWidget(clear_button)
 
 
         # Add spacer to push title to center
-        btcturk_open_orders_header_layout.addStretch(1)
+        EXCHANGE_open_orders_header_layout.addStretch(1)
 
         # Get order count from Redis
         try:
@@ -2212,29 +1946,29 @@ class ArbitrageMonitor(QMainWindow):
             logging.error(f"Error getting order count: {e}")
             order_count = 0
         # Add title label in the center
-        self.btcturk_open_orders_label = QLabel(f"BTCTURK OPEN ORDERS ({order_count} orders)")
-        self.btcturk_open_orders_label.setStyleSheet("font-weight: bold; color: white; padding: 5px;")
-        btcturk_open_orders_header_layout.addWidget(self.btcturk_open_orders_label)
+        self.EXCHANGE_open_orders_label = QLabel(f"EXCHANGE OPEN ORDERS ({order_count} orders)")
+        self.EXCHANGE_open_orders_label.setStyleSheet("font-weight: bold; color: white; padding: 5px;")
+        EXCHANGE_open_orders_header_layout.addWidget(self.EXCHANGE_open_orders_label)
 
         # Add another spacer to balance the layout
-        btcturk_open_orders_header_layout.addStretch(1)
+        EXCHANGE_open_orders_header_layout.addStretch(1)
 
-        # Add header to BTCTURK open orders layout
-        btcturk_open_orders_layout.addWidget(btcturk_open_orders_header)
+        # Add header to EXCHANGE open orders layout
+        EXCHANGE_open_orders_layout.addWidget(EXCHANGE_open_orders_header)
 
-        # Create BTCTURK open orders table
-        self.btcturk_open_orders_table = QTableWidget()
-        self.setup_table(self.btcturk_open_orders_table, self.btcturk_open_orders_columns)
-        btcturk_open_orders_layout.addWidget(self.btcturk_open_orders_table)
+        # Create EXCHANGE open orders table
+        self.EXCHANGE_open_orders_table = QTableWidget()
+        self.setup_table(self.EXCHANGE_open_orders_table, self.EXCHANGE_open_orders_columns)
+        EXCHANGE_open_orders_layout.addWidget(self.EXCHANGE_open_orders_table)
 
-        # Restore column order for BTCTURK open orders table
-        self.restore_column_order(self.btcturk_open_orders_table)
+        # Restore column order for EXCHANGE open orders table
+        self.restore_column_order(self.EXCHANGE_open_orders_table)
      
         # Create Binance trade history table
 
         # Add widgets to top splitter
         top_splitter.addWidget(open_trade_widget)
-        top_splitter.addWidget(btcturk_open_orders_widget)
+        top_splitter.addWidget(EXCHANGE_open_orders_widget)
 
         # Create bottom section splitter (horizontal)
         bottom_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -2427,8 +2161,8 @@ class ArbitrageMonitor(QMainWindow):
             }
         """)
         
-        # Add BTCTURK trade history tab
-        self.trade_history_tabs.addTab(btcturk_trade_widget, "BTCTURK Trade History")
+        # Add EXCHANGE trade history tab
+        self.trade_history_tabs.addTab(EXCHANGE_trade_widget, "EXCHANGE Trade History")
         
         # Add Binance trade history tab
         self.trade_history_tabs.addTab(binance_trade_widget, "Binance Trade History")
@@ -2527,7 +2261,7 @@ class ArbitrageMonitor(QMainWindow):
         self.move_history_table = QTableWidget()
         self.setup_table(self.move_history_table, [
             "MoveTime", "OrderID", "Symbol", "Core", "BinanceMargin", 
-            "BtcturkMargin", "StopMargin", "MoveThres", "MarginDiff", "PNL", "Source"
+            "EXCHANGEMargin", "StopMargin", "MoveThres", "MarginDiff", "PNL", "Source"
         ])
         move_history_layout.addWidget(self.move_history_table)
         
@@ -2552,16 +2286,16 @@ class ArbitrageMonitor(QMainWindow):
         # Add main splitter to monitoring layout
         monitoring_layout.addWidget(main_splitter)
         
-    def change_btcturk_page(self, direction):
-        global btcturk_history_page_no
+    def change_EXCHANGE_page(self, direction):
+        global EXCHANGE_history_page_no
 
-        btcturk_history_page_size = self.redis.llen('maker_BTCTURK_trade_history') // 100
-        btcturk_history_page_no += direction
-        if btcturk_history_page_no > btcturk_history_page_size:
-            btcturk_history_page_no = btcturk_history_page_size
-        if btcturk_history_page_no < 1:
-            btcturk_history_page_no = 1
-        self.btcturk_page_label.setText(f"Page {btcturk_history_page_no} of {btcturk_history_page_size}")
+        EXCHANGE_history_page_size = self.redis.llen('maker_EXCHANGE_trade_history') // 100
+        EXCHANGE_history_page_no += direction
+        if EXCHANGE_history_page_no > EXCHANGE_history_page_size:
+            EXCHANGE_history_page_no = EXCHANGE_history_page_size
+        if EXCHANGE_history_page_no < 1:
+            EXCHANGE_history_page_no = 1
+        self.EXCHANGE_page_label.setText(f"Page {EXCHANGE_history_page_no} of {EXCHANGE_history_page_size}")
 
     def change_binance_page(self, direction):
         global binance_history_page_no
@@ -2574,12 +2308,12 @@ class ArbitrageMonitor(QMainWindow):
             binance_history_page_no = 1
         self.binance_page_label.setText(f"Page {binance_history_page_no} of {binance_history_page_size}")   
     
-    def reset_btcturk_page(self):
-        global btcturk_history_page_no
+    def reset_EXCHANGE_page(self):
+        global EXCHANGE_history_page_no
 
-        btcturk_history_page_size = self.redis.llen('maker_BTCTURK_trade_history') // 100
-        btcturk_history_page_no = 1
-        self.btcturk_page_label.setText(f"Page {btcturk_history_page_no} of {btcturk_history_page_size}")
+        EXCHANGE_history_page_size = self.redis.llen('maker_EXCHANGE_trade_history') // 100
+        EXCHANGE_history_page_no = 1
+        self.EXCHANGE_page_label.setText(f"Page {EXCHANGE_history_page_no} of {EXCHANGE_history_page_size}")
 
     def reset_binance_page(self):
         global binance_history_page_no
@@ -2607,25 +2341,25 @@ class ArbitrageMonitor(QMainWindow):
         self.move_history_page_label.setText(f"Page {move_history_page_no} of {move_history_page_size}")
         
     
-    def filter_btcturk_open_orders(self):
-        """Filter BTCTURK open orders table based on search text"""
-        search_text = self.btcturk_open_orders_search_input.text().upper()
+    def filter_EXCHANGE_open_orders(self):
+        """Filter EXCHANGE open orders table based on search text"""
+        search_text = self.EXCHANGE_open_orders_search_input.text().upper()
         
-        for row in range(self.btcturk_open_orders_table.rowCount()):
-            symbol_item = self.btcturk_open_orders_table.item(row, 2)  # Symbol is at the third column (index 2)
+        for row in range(self.EXCHANGE_open_orders_table.rowCount()):
+            symbol_item = self.EXCHANGE_open_orders_table.item(row, 2)  # Symbol is at the third column (index 2)
             if symbol_item:
                 symbol = symbol_item.text()
                 if search_text and search_text not in symbol:
-                    self.btcturk_open_orders_table.hideRow(row)
+                    self.EXCHANGE_open_orders_table.hideRow(row)
                 else:
-                    self.btcturk_open_orders_table.showRow(row)
+                    self.EXCHANGE_open_orders_table.showRow(row)
         
         # Update the status bar with the number of visible rows
-        open_visible = sum(1 for row in range(self.btcturk_open_orders_table.rowCount()) 
-                          if not self.btcturk_open_orders_table.isRowHidden(row))
-        total_open = self.btcturk_open_orders_table.rowCount()
+        open_visible = sum(1 for row in range(self.EXCHANGE_open_orders_table.rowCount()) 
+                          if not self.EXCHANGE_open_orders_table.isRowHidden(row))
+        total_open = self.EXCHANGE_open_orders_table.rowCount()
         
-        self.statusBar().showMessage(f"BTCTURK Open Orders: Showing {open_visible} of {total_open} symbols")
+        self.statusBar().showMessage(f"EXCHANGE Open Orders: Showing {open_visible} of {total_open} symbols")
     
     
     def filter_open_trade_table(self):
@@ -2740,14 +2474,15 @@ class ArbitrageMonitor(QMainWindow):
             lambda x: f"{x * 10000:.0f}",  # OpenStopMargin
             lambda x: f"{x * 10000:.0f}",  # OpenAggression
             lambda x: f"{x * 10000:.0f}",  # OpenMarginWindow
-            lambda x: f"₺{x:,.0f}",  # BTCTURK PosTRY
-            lambda x: f"{float(x):.4f}" if is_number(x) else "N/A",  # BTCTURK PosCoin
+            lambda x: f"₺{x:,.0f}",  # EXCHANGE PosTRY
+            lambda x: f"{float(x):.4f}" if is_number(x) else "N/A",  # EXCHANGE PosCoin
             lambda x: f"{float(x):.4f}" if is_number(x) else "N/A",  # Binance PosCoin
             lambda x: f"₺{x:,.0f}",  # MaxPosTRY
             lambda x: f"₺{float(x):,.0f}" if is_number(x) else "N/A",  # CapacityTRY
             lambda x: x,  # BinanceTime
-            lambda x: x,  # BTCTURKTime
+            lambda x: x,  # EXCHANGETime
             lambda x: f"{float(x):.0f}" if is_number(x) else "N/A",  # TimeDiff
+            lambda x: f"{float(x):.0f}" if is_number(x) else "N/A",  # Binance Abs Time Diff (ms)
         ])
         
         # Update close trade table
@@ -2759,11 +2494,11 @@ class ArbitrageMonitor(QMainWindow):
             lambda x: f"{x * 10000:.0f}",  # CloseStopMargin
             lambda x: f"{x * 10000:.0f}",  # CloseAggression
             lambda x: f"{x * 10000:.0f}",  # CloseMarginWindow
-            lambda x: f"₺{x:,.0f}",  # BTCTURK PosTRY
-            lambda x: f"{float(x):.4f}" if is_number(x) else "N/A",  # BTCTURK PosCoin
+            lambda x: f"₺{x:,.0f}",  # EXCHANGE PosTRY
+            lambda x: f"{float(x):.4f}" if is_number(x) else "N/A",  # EXCHANGE PosCoin
             lambda x: f"{float(x):.4f}" if is_number(x) else "N/A",  # Binance PosCoin
             lambda x: x,  # BinanceTime
-            lambda x: x,  # BTCTURKTime
+            lambda x: x,  # EXCHANGETime
             lambda x: f"{float(x):.0f}" if is_number(x) else "N/A",  # TimeDiff
         ])
         
@@ -2796,16 +2531,16 @@ class ArbitrageMonitor(QMainWindow):
                 else:
                     self.close_trade_table.showRow(row)
         
-    def filter_btcturk_open_orders_without_updating_input(self, search_text):
-        """Filter BTCTURK open orders table based on search text without updating the input field"""
-        for row in range(self.btcturk_open_orders_table.rowCount()):
-            symbol_item = self.btcturk_open_orders_table.item(row, 2)  # Symbol is at the third column (index 2)
+    def filter_EXCHANGE_open_orders_without_updating_input(self, search_text):
+        """Filter EXCHANGE open orders table based on search text without updating the input field"""
+        for row in range(self.EXCHANGE_open_orders_table.rowCount()):
+            symbol_item = self.EXCHANGE_open_orders_table.item(row, 2)  # Symbol is at the third column (index 2)
             if symbol_item:
                 symbol = symbol_item.text()
                 if search_text and search_text not in symbol:
-                    self.btcturk_open_orders_table.hideRow(row)
+                    self.EXCHANGE_open_orders_table.hideRow(row)
                 else:
-                    self.btcturk_open_orders_table.showRow(row)
+                    self.EXCHANGE_open_orders_table.showRow(row)
         
         
     def setup_table(self, table, headers):
@@ -2866,12 +2601,12 @@ class ArbitrageMonitor(QMainWindow):
             table_name = "open_trade_table"
         elif hasattr(self, 'close_trade_table') and table == self.close_trade_table:
             table_name = "close_trade_table"
-        elif hasattr(self, 'btcturk_trade_table') and table == self.btcturk_trade_table:
-            table_name = "btcturk_trade_table"
+        elif hasattr(self, 'EXCHANGE_trade_table') and table == self.EXCHANGE_trade_table:
+            table_name = "EXCHANGE_trade_table"
         elif hasattr(self, 'binance_trade_table') and table == self.binance_trade_table:
             table_name = "binance_trade_table"
-        elif hasattr(self, 'btcturk_open_orders_table') and table == self.btcturk_open_orders_table:
-            table_name = "btcturk_open_orders_table"
+        elif hasattr(self, 'EXCHANGE_open_orders_table') and table == self.EXCHANGE_open_orders_table:
+            table_name = "EXCHANGE_open_orders_table"
         else:
             return
         
@@ -2899,12 +2634,12 @@ class ArbitrageMonitor(QMainWindow):
             table_name = "open_trade_table"
         elif hasattr(self, 'close_trade_table') and table == self.close_trade_table:
             table_name = "close_trade_table"
-        elif hasattr(self, 'btcturk_trade_table') and table == self.btcturk_trade_table:
-            table_name = "btcturk_trade_table"
+        elif hasattr(self, 'EXCHANGE_trade_table') and table == self.EXCHANGE_trade_table:
+            table_name = "EXCHANGE_trade_table"
         elif hasattr(self, 'binance_trade_table') and table == self.binance_trade_table:
             table_name = "binance_trade_table"
-        elif hasattr(self, 'btcturk_open_orders_table') and table == self.btcturk_open_orders_table:
-            table_name = "btcturk_open_orders_table"
+        elif hasattr(self, 'EXCHANGE_open_orders_table') and table == self.EXCHANGE_open_orders_table:
+            table_name = "EXCHANGE_open_orders_table"
         else:
             return
         
@@ -2955,7 +2690,7 @@ class ArbitrageMonitor(QMainWindow):
         
         # Get essential columns based on table type
         essential_columns = ["Symbol", "Margin", "Threshold"]
-        if table == self.btcturk_trade_table:
+        if table == self.EXCHANGE_trade_table:
             essential_columns = ["Symbol", "OrderTime", "Status", "Side"]
         elif table == self.binance_trade_table:
             essential_columns = ["Symbol", "OrderTime", "Side"]
@@ -2973,7 +2708,7 @@ class ArbitrageMonitor(QMainWindow):
                 action.setToolTip("This column cannot be hidden")
             else:
                 # Use a direct function for history tables
-                if table == self.btcturk_trade_table or table == self.binance_trade_table:
+                if table == self.EXCHANGE_trade_table or table == self.binance_trade_table:
                     action.triggered.connect(lambda checked, t=table, col=i: self.toggle_history_column(t, col, checked))
                 else:
                     # Use regular approach for other tables
@@ -3004,7 +2739,7 @@ class ArbitrageMonitor(QMainWindow):
         
         # Get essential columns based on table type
         essential_columns = ["Symbol", "Margin", "Threshold"]
-        if table == self.btcturk_trade_table or table == self.binance_trade_table:
+        if table == self.EXCHANGE_trade_table or table == self.binance_trade_table:
             essential_columns = ["Symbol", "OrderTime", "Status", "Side"]
         
         # Add actions for each column with direct visibility toggle for history tables
@@ -3020,7 +2755,7 @@ class ArbitrageMonitor(QMainWindow):
                 action.setToolTip("This column cannot be hidden")
             else:
                 # Use a direct function for history tables
-                if table == self.btcturk_trade_table or table == self.binance_trade_table:
+                if table == self.EXCHANGE_trade_table or table == self.binance_trade_table:
                     action.triggered.connect(lambda checked, t=table, col=i: self.toggle_history_column(t, col, checked))
                 else:
                     # Use regular approach for other tables
@@ -3035,10 +2770,10 @@ class ArbitrageMonitor(QMainWindow):
         """Show or hide all columns in the table, keeping essential columns visible"""
         # Get essential columns based on table type
         if table == self.open_trade_table:
-            essential_columns = ["BaseSymbol", "Maker_Type", "OpenMargin", "OpenTriggerMargin", "OpenStopMargin", "BTCTURKPositionAmount_TRY"]
+            essential_columns = ["BaseSymbol", "Maker_Type", "OpenMargin", "OpenTriggerMargin", "OpenStopMargin", "EXCHANGEPositionAmount_TRY"]
         elif table == self.close_trade_table:
-            essential_columns = ["BaseSymbol", "Maker_Type", "CloseMargin", "CloseTriggerMargin", "CloseStopMargin", "BTCTURKPositionAmount_TRY"]
-        elif table == self.btcturk_trade_table: 
+            essential_columns = ["BaseSymbol", "Maker_Type", "CloseMargin", "CloseTriggerMargin", "CloseStopMargin", "EXCHANGEPositionAmount_TRY"]
+        elif table == self.EXCHANGE_trade_table: 
             essential_columns = ["Symbol", "OrderTime", "Status", "Side"]
         elif table == self.binance_trade_table:
             essential_columns = ["Symbol", "OrderTime", "Side"]
@@ -3067,8 +2802,8 @@ class ArbitrageMonitor(QMainWindow):
                 table.setColumnHidden(i, False)
         
         # Store the current visibility state for history tables
-        if table == self.btcturk_trade_table:
-            self.btcturk_column_state = [table.isColumnHidden(i) for i in range(table.columnCount())]
+        if table == self.EXCHANGE_trade_table:
+            self.EXCHANGE_column_state = [table.isColumnHidden(i) for i in range(table.columnCount())]
         elif table == self.binance_trade_table:
             self.binance_column_state = [table.isColumnHidden(i) for i in range(table.columnCount())]
 
@@ -3089,12 +2824,12 @@ class ArbitrageMonitor(QMainWindow):
         is_hidden = table.isColumnHidden(column)
         logging.info(f"Column {column} ({column_name}) visibility after resize: hidden={is_hidden}, width={new_width}")
 
-    def update_maker_BTCTURK_trade_history(self, df):
+    def update_maker_EXCHANGE_trade_history(self, df):
         if df is None or df.empty:
             return
 
         # Define visible columns with their formatters
-        columns = maker_BTCTURK_trade_history_columns
+        columns = maker_EXCHANGE_trade_history_columns
         formatters = [
             lambda x: x,  # ExecutionTime
             lambda x: x,  # OrderId
@@ -3113,28 +2848,28 @@ class ArbitrageMonitor(QMainWindow):
                 df[col] = None
                 
         # Save current sort order
-        sort_column = self.btcturk_trade_table.horizontalHeader().sortIndicatorSection()
-        sort_order = self.btcturk_trade_table.horizontalHeader().sortIndicatorOrder()
+        sort_column = self.EXCHANGE_trade_table.horizontalHeader().sortIndicatorSection()
+        sort_order = self.EXCHANGE_trade_table.horizontalHeader().sortIndicatorOrder()
         
         # Save column widths only if not first update
         column_widths = []
-        if hasattr(self, 'btcturk_first_update_done') and self.btcturk_first_update_done:
-            for i in range(self.btcturk_trade_table.columnCount()):
-                column_widths.append(self.btcturk_trade_table.columnWidth(i))
+        if hasattr(self, 'EXCHANGE_first_update_done') and self.EXCHANGE_first_update_done:
+            for i in range(self.EXCHANGE_trade_table.columnCount()):
+                column_widths.append(self.EXCHANGE_trade_table.columnWidth(i))
         
         # Save column visibility state only if not first update
         column_hidden = []
-        if hasattr(self, 'btcturk_first_update_done') and self.btcturk_first_update_done:
-            for i in range(self.btcturk_trade_table.columnCount()):
-                column_hidden.append(self.btcturk_trade_table.isColumnHidden(i))
+        if hasattr(self, 'EXCHANGE_first_update_done') and self.EXCHANGE_first_update_done:
+            for i in range(self.EXCHANGE_trade_table.columnCount()):
+                column_hidden.append(self.EXCHANGE_trade_table.isColumnHidden(i))
         # Temporarily disable sorting
-        self.btcturk_trade_table.setSortingEnabled(False)
+        self.EXCHANGE_trade_table.setSortingEnabled(False)
         
         # Clear existing rows but keep the structure
-        self.btcturk_trade_table.setRowCount(0)
+        self.EXCHANGE_trade_table.setRowCount(0)
         
         # Add rows for each trade
-        self.btcturk_trade_table.setRowCount(len(df))
+        self.EXCHANGE_trade_table.setRowCount(len(df))
         
         # Get current time for highlighting recent trades
         current_time = time.time()
@@ -3213,27 +2948,27 @@ class ArbitrageMonitor(QMainWindow):
                     bg_color = QColor(0, 100, 0) if side == 'BUY' else QColor(139, 0, 0)
                     item.setBackground(bg_color)
                     #item.setFont(QFont("Arial", 10, QFont.Bold))
-                self.btcturk_trade_table.setItem(row_idx, col_idx, item)
+                self.EXCHANGE_trade_table.setItem(row_idx, col_idx, item)
         
         # Resize columns to fit content on first update only
-        if not hasattr(self, 'btcturk_first_update_done') or not self.btcturk_first_update_done:
-            self.resize_columns_to_contents(self.btcturk_trade_table)
-            self.btcturk_first_update_done = True
+        if not hasattr(self, 'EXCHANGE_first_update_done') or not self.EXCHANGE_first_update_done:
+            self.resize_columns_to_contents(self.EXCHANGE_trade_table)
+            self.EXCHANGE_first_update_done = True
         else:
             # Restore column widths for subsequent updates
             for i, width in enumerate(column_widths):
-                if i < self.btcturk_trade_table.columnCount():
-                    self.btcturk_trade_table.setColumnWidth(i, width)
+                if i < self.EXCHANGE_trade_table.columnCount():
+                    self.EXCHANGE_trade_table.setColumnWidth(i, width)
         
         # Restore column visibility
         for i, hidden in enumerate(column_hidden):
-            if i < self.btcturk_trade_table.columnCount():
-                self.btcturk_trade_table.setColumnHidden(i, hidden)
+            if i < self.EXCHANGE_trade_table.columnCount():
+                self.EXCHANGE_trade_table.setColumnHidden(i, hidden)
         
         # Re-enable sorting and restore previous sort
-        self.btcturk_trade_table.setSortingEnabled(True)
-        if sort_column < self.btcturk_trade_table.columnCount():
-            self.btcturk_trade_table.horizontalHeader().setSortIndicator(sort_column, sort_order)
+        self.EXCHANGE_trade_table.setSortingEnabled(True)
+        if sort_column < self.EXCHANGE_trade_table.columnCount():
+            self.EXCHANGE_trade_table.horizontalHeader().setSortIndicator(sort_column, sort_order)
 
     def update_maker_binance_trade_history(self, df):
         if df is None or df.empty:
@@ -3417,7 +3152,7 @@ class ArbitrageMonitor(QMainWindow):
         # Define visible columns with their formatters
         columns = [
             "MoveTime", "OrderID", "Symbol", "Core", "BinanceExecutedMargin", 
-            "BTCTURKExecutedMargin", "StopMargin", "MoveThreshold", "MarginDifference", "PNL", "Source"
+            "EXCHANGEExecutedMargin", "StopMargin", "MoveThreshold", "MarginDifference", "PNL", "Source"
         ]
         formatters = [
             lambda x: x,  # MoveTime
@@ -3425,7 +3160,7 @@ class ArbitrageMonitor(QMainWindow):
             lambda x: x,  # Symbol
             lambda x: x,  # Core
             lambda x: f"{float(x):.2f}" if pd.notna(x) else "",  # BinanceExecutedMargin
-            lambda x: f"{float(x):.2f}" if pd.notna(x) else "",  # BTCTURKExecutedMargin
+            lambda x: f"{float(x):.2f}" if pd.notna(x) else "",  # EXCHANGEExecutedMargin
             lambda x: f"{float(x):.2f}" if pd.notna(x) else "",  # StopMargin
             lambda x: f"{int(x)}" if pd.notna(x) else "",  # MoveThreshold
             lambda x: f"{float(x):.2f}" if pd.notna(x) else "",  # MarginDifference
@@ -3470,7 +3205,7 @@ class ArbitrageMonitor(QMainWindow):
                 
                 # Create appropriate table item
                 numeric_columns = [
-                    "BinanceExecutedMargin", "BTCTURKExecutedMargin", "StopMargin", "MarginDifference", "PNL"
+                    "BinanceExecutedMargin", "EXCHANGEExecutedMargin", "StopMargin", "MarginDifference", "PNL"
                 ]
                 
                 if col in numeric_columns and pd.notna(value):
@@ -3508,15 +3243,15 @@ class ArbitrageMonitor(QMainWindow):
         if sort_column < self.move_history_table.columnCount():
             self.move_history_table.horizontalHeader().setSortIndicator(sort_column, sort_order)
 
-    def update_btcturk_open_orders(self, df):
-        """Update the BTCTURK open orders table with new data"""
+    def update_EXCHANGE_open_orders(self, df):
+        """Update the EXCHANGE open orders table with new data"""
         if df is None:
             return
 
         try:
             # Ensure DataFrame has all required columns even if empty
             if df.empty:
-                df = pd.DataFrame(columns=self.btcturk_open_orders_columns)
+                df = pd.DataFrame(columns=self.EXCHANGE_open_orders_columns)
 
             # Calculate totals
             order_count = len(df)
@@ -3530,82 +3265,82 @@ class ArbitrageMonitor(QMainWindow):
                 sell_order_count = len(df[df['Side'] == 'SELL'])
             
             # Update order count label with totals
-            if hasattr(self, 'btcturk_open_orders_label'):
-                self.btcturk_open_orders_label.setText(
-                    f"BTCTURK OPEN ORDERS (Buy: {buy_order_count} / Sell: {sell_order_count} / TOTAL: {order_count})"
+            if hasattr(self, 'EXCHANGE_open_orders_label'):
+                self.EXCHANGE_open_orders_label.setText(
+                    f"EXCHANGE OPEN ORDERS (Buy: {buy_order_count} / Sell: {sell_order_count} / TOTAL: {order_count})"
                 )
         except Exception as e:
             logging.error(f"Error updating order count: {e}")
 
         # Save current search text
-        btcturk_open_orders_search = self.btcturk_open_orders_search_input.text() if hasattr(self, 'btcturk_open_orders_search_input') else ""
+        EXCHANGE_open_orders_search = self.EXCHANGE_open_orders_search_input.text() if hasattr(self, 'EXCHANGE_open_orders_search_input') else ""
 
-        # Update BTCTURK open orders table
-        self.btcturk_open_orders_table.setSortingEnabled(False)
-        self.btcturk_open_orders_table.setRowCount(0)
+        # Update EXCHANGE open orders table
+        self.EXCHANGE_open_orders_table.setSortingEnabled(False)
+        self.EXCHANGE_open_orders_table.setRowCount(0)
         
         # Get current time for highlighting recent orders
         current_time = time.time()
         
         # Update table with new data using proper numeric sorting
-        self.btcturk_open_orders_table.setSortingEnabled(False)
-        self.btcturk_open_orders_table.setRowCount(0)
+        self.EXCHANGE_open_orders_table.setSortingEnabled(False)
+        self.EXCHANGE_open_orders_table.setRowCount(0)
         
         # Check if DataFrame is empty
         if df.empty:
-            self.btcturk_open_orders_table.setSortingEnabled(True)
+            self.EXCHANGE_open_orders_table.setSortingEnabled(True)
             return
         
         for index, row in df.iterrows():
             try:
-                row_position = self.btcturk_open_orders_table.rowCount()
-                self.btcturk_open_orders_table.insertRow(row_position)
+                row_position = self.EXCHANGE_open_orders_table.rowCount()
+                self.EXCHANGE_open_orders_table.insertRow(row_position)
                 
                 # OrderTime
-                self.btcturk_open_orders_table.setItem(row_position, 0, QTableWidgetItem(str(row.get('OrderTime', ''))))
+                self.EXCHANGE_open_orders_table.setItem(row_position, 0, QTableWidgetItem(str(row.get('OrderTime', ''))))
                 
                 # OrderId
-                self.btcturk_open_orders_table.setItem(row_position, 1, QTableWidgetItem(str(row.get('OrderId', ''))))
+                self.EXCHANGE_open_orders_table.setItem(row_position, 1, QTableWidgetItem(str(row.get('OrderId', ''))))
                 
                 # Symbol
-                self.btcturk_open_orders_table.setItem(row_position, 2, QTableWidgetItem(str(row.get('Symbol', ''))))
+                self.EXCHANGE_open_orders_table.setItem(row_position, 2, QTableWidgetItem(str(row.get('Symbol', ''))))
                 
                 # Core
-                self.btcturk_open_orders_table.setItem(row_position, 3, QTableWidgetItem(str(row.get('Core', ''))))
+                self.EXCHANGE_open_orders_table.setItem(row_position, 3, QTableWidgetItem(str(row.get('Core', ''))))
                 
                 # Side
-                self.btcturk_open_orders_table.setItem(row_position, 4, QTableWidgetItem(str(row.get('Side', ''))))
+                self.EXCHANGE_open_orders_table.setItem(row_position, 4, QTableWidgetItem(str(row.get('Side', ''))))
                 
                 # Price
                 price_value = float(row.get('Price', 0)) if pd.notna(row.get('Price', 0)) else 0
                 price_item = self.NumericTableWidgetItem(f"₺{price_value}", price_value)
-                self.btcturk_open_orders_table.setItem(row_position, 5, price_item)
+                self.EXCHANGE_open_orders_table.setItem(row_position, 5, price_item)
                 
                 # Amount
                 amount_value = float(row.get('Amount', 0)) if pd.notna(row.get('Amount', 0)) else 0
                 amount_item = self.NumericTableWidgetItem(f"{amount_value}", amount_value)
-                self.btcturk_open_orders_table.setItem(row_position, 6, amount_item)
+                self.EXCHANGE_open_orders_table.setItem(row_position, 6, amount_item)
                 
                 # AmountTRY
                 amount_try_value = float(row.get('AmountTRY', 0)) if pd.notna(row.get('AmountTRY', 0)) else 0
                 amount_try_item = self.NumericTableWidgetItem(f"₺{amount_try_value:,.2f}", amount_try_value)
-                self.btcturk_open_orders_table.setItem(row_position, 7, amount_try_item)
+                self.EXCHANGE_open_orders_table.setItem(row_position, 7, amount_try_item)
                 
                 # TriggerMargin
                 trigger_margin_value = float(row.get('TriggerMargin', 0)) if pd.notna(row.get('TriggerMargin', 0)) else 0
                 trigger_margin_item = self.NumericTableWidgetItem(f"{trigger_margin_value*100:,.4f}%", trigger_margin_value*100)
-                self.btcturk_open_orders_table.setItem(row_position, 8, trigger_margin_item)
+                self.EXCHANGE_open_orders_table.setItem(row_position, 8, trigger_margin_item)
             except Exception as e:
                 logging.error(f"Error processing row {index} in open orders table: {e}")
                 continue
         
         # Re-enable sorting
-        self.btcturk_open_orders_table.setSortingEnabled(True)
+        self.EXCHANGE_open_orders_table.setSortingEnabled(True)
         
         # Apply background colors for recent orders and side-based coloring
-        for row in range(self.btcturk_open_orders_table.rowCount()):
-            order_time_item = self.btcturk_open_orders_table.item(row, 0)
-            side_item = self.btcturk_open_orders_table.item(row, 4)
+        for row in range(self.EXCHANGE_open_orders_table.rowCount()):
+            order_time_item = self.EXCHANGE_open_orders_table.item(row, 0)
+            side_item = self.EXCHANGE_open_orders_table.item(row, 4)
             
             if order_time_item and side_item:
                 try:
@@ -3619,8 +3354,8 @@ class ArbitrageMonitor(QMainWindow):
                         bg_color = QColor(0, 100, 0) if side_item.text() == 'BUY' else QColor(139, 0, 0) if side_item.text() == 'SELL' else QColor(128, 0, 128)
                         
                         # Apply color to all cells in the row
-                        for col in range(self.btcturk_open_orders_table.columnCount()):
-                            item = self.btcturk_open_orders_table.item(row, col)
+                        for col in range(self.EXCHANGE_open_orders_table.columnCount()):
+                            item = self.EXCHANGE_open_orders_table.item(row, col)
                             if item:
                                 item.setBackground(bg_color)
                     else:
@@ -3633,27 +3368,27 @@ class ArbitrageMonitor(QMainWindow):
                             bg_color = QColor(50, 0, 50, 50)  # Light purple with transparency
                         
                         # Apply subtle color to all cells in the row
-                        for col in range(self.btcturk_open_orders_table.columnCount()):
-                            item = self.btcturk_open_orders_table.item(row, col)
+                        for col in range(self.EXCHANGE_open_orders_table.columnCount()):
+                            item = self.EXCHANGE_open_orders_table.item(row, col)
                             if item:
                                 item.setBackground(bg_color)
                 except (ValueError, TypeError):
                     continue
         
         # Reapply search filter if there was any
-        if btcturk_open_orders_search:
-            self.filter_btcturk_open_orders_without_updating_input(btcturk_open_orders_search)
+        if EXCHANGE_open_orders_search:
+            self.filter_EXCHANGE_open_orders_without_updating_input(EXCHANGE_open_orders_search)
 
-    def update_btcturk_open_orders_without_updating_input(self, search_text):
-        """Filter BTCTURK open orders table based on search text without updating the input field"""
-        for row in range(self.btcturk_open_orders_table.rowCount()):
-            symbol_item = self.btcturk_open_orders_table.item(row, 2)  # Symbol is at the third column (index 2)
+    def update_EXCHANGE_open_orders_without_updating_input(self, search_text):
+        """Filter EXCHANGE open orders table based on search text without updating the input field"""
+        for row in range(self.EXCHANGE_open_orders_table.rowCount()):
+            symbol_item = self.EXCHANGE_open_orders_table.item(row, 2)  # Symbol is at the third column (index 2)
             if symbol_item:
                 symbol = symbol_item.text()
                 if search_text and search_text not in symbol:
-                    self.btcturk_open_orders_table.hideRow(row)
+                    self.EXCHANGE_open_orders_table.hideRow(row)
                 else:
-                    self.btcturk_open_orders_table.showRow(row)
+                    self.EXCHANGE_open_orders_table.showRow(row)
         
         
     def resize_columns_to_contents(self, table):
@@ -3682,7 +3417,7 @@ class ArbitrageMonitor(QMainWindow):
             # Temporarily disable sorting
             self.settings_table.setSortingEnabled(False)
             
-            BTCTURK_balances = df.iloc[:, arbit_config_maker.col_BTCTURK_PositionAmount_TRY_total]
+            EXCHANGE_balances = df.iloc[:, arbit_config_maker.col_EXCHANGE_PositionAmount_TRY_total]
             
             symbols = df.iloc[:, arbit_config_maker.col_Base_Symbol]
             
@@ -3695,7 +3430,7 @@ class ArbitrageMonitor(QMainWindow):
                     symbol_idx = symbols[symbols == symbol].index[0] if symbol in symbols.values else None
                     if symbol_idx is not None:
                         # Get balance for this symbol
-                        balance = BTCTURK_balances.iloc[symbol_idx]
+                        balance = EXCHANGE_balances.iloc[symbol_idx]
                         # Create balance item with proper formatting and alignment
                         # Use StableNumericTableWidgetItem instead of QTableWidgetItem
                         balance_item = self.StableNumericTableWidgetItem(f"₺{balance:,.0f}", balance, symbol)
@@ -3713,13 +3448,20 @@ class ArbitrageMonitor(QMainWindow):
             
              # Get the column indices from arbit_config
             binance_free_idx = arbit_config_maker.col_Binance_free_usdt
-            btcturk_free_idx = arbit_config_maker.col_BTCTURK_free_TRY
+            EXCHANGE_free_idx = arbit_config_maker.col_EXCHANGE_free_TRY
             usdttry_bid_idx = arbit_config_maker.col_USDTTRY_bid
 
             # Get balances from the arbitrage table using pandas iloc
             binance_usdt = float(df.iloc[0, binance_free_idx])
-            btcturk_try = float(df.iloc[0, btcturk_free_idx])
+            EXCHANGE_try = float(df.iloc[0, EXCHANGE_free_idx])
             usdttry_bid = float(df.iloc[0, usdttry_bid_idx])
+            
+            # Track EXCHANGE balance history for 10-second moving average (keep last 10 readings)
+            if not hasattr(self, 'EXCHANGE_balance_history'):
+                self.EXCHANGE_balance_history = []
+            self.EXCHANGE_balance_history.append(EXCHANGE_try)
+            if len(self.EXCHANGE_balance_history) > 10:
+                self.EXCHANGE_balance_history.pop(0)  # Keep only last 10 readings
             
             # Calculate USDT value in TRY
             binance_try = binance_usdt * usdttry_bid
@@ -3729,7 +3471,7 @@ class ArbitrageMonitor(QMainWindow):
                 f"""
                 <div style="line-height: 1.4;">
                     Binance: ${binance_usdt:,.2f} (₺{binance_try:,.2f})<br>
-                    BTCTURK: ₺{btcturk_try:,.2f}
+                    EXCHANGE: ₺{EXCHANGE_try:,.2f}
                 </div>
                 """
             )
@@ -3829,9 +3571,13 @@ class ArbitrageMonitor(QMainWindow):
             
     def setup_settings_page(self):
         """Set up the settings page"""
+        # Set Turkish locale for thousand separators (dots)
+        turkish_locale = QLocale(QLocale.Language.Turkish, QLocale.Country.Turkey)
+        
         # Create layout for settings page
         settings_layout = QVBoxLayout(self.settings_page)
         settings_layout.setContentsMargins(5, 5, 5, 5)
+        settings_layout.setSpacing(10)
         
         # Create controls panel at the top
         controls_panel = QWidget()
@@ -3844,62 +3590,97 @@ class ArbitrageMonitor(QMainWindow):
         margin_layout = QGridLayout(margin_group)
         
         # Open Trigger Margin
-        margin_layout.addWidget(QLabel("Open Trigger Margin (bps):"), 0, 0)
+        margin_layout.addWidget(QLabel("Buy Trigger Margin (bps):"), 0, 0)
         self.open_margin_input = QSpinBox()
+        self.open_margin_input.setLocale(turkish_locale)
         self.open_margin_input.setRange(-1000, 1000)
         self.open_margin_input.setValue(40)
+        self.open_margin_input.setGroupSeparatorShown(True)
         margin_layout.addWidget(self.open_margin_input, 0, 1)
-        update_open_btn = QPushButton("Update Open Trigger Margin")
+        update_open_btn = QPushButton("Update")
         update_open_btn.clicked.connect(self.update_open_trigger_margin)
         margin_layout.addWidget(update_open_btn, 0, 2)
         
         # Combined update button for open margins that spans two rows
-        update_open_combined_btn = QPushButton("Update All Buy Margins")
+        update_open_combined_btn = QPushButton("Update Buy Margins\n(without exceptionals)")
         update_open_combined_btn.clicked.connect(self.update_open_trigger_margin_and_window)
         update_open_combined_btn.setMinimumHeight(50)  # Make it taller to span two rows
         margin_layout.addWidget(update_open_combined_btn, 0, 3, 2, 1)  # span 2 rows
         
         # Open Margin Window
-        margin_layout.addWidget(QLabel("Open Margin Window (bps):"), 1, 0)
+        margin_layout.addWidget(QLabel("Buy Margin Window (bps):"), 1, 0)
         self.open_margin_window_input = QSpinBox()
+        self.open_margin_window_input.setLocale(turkish_locale)
         self.open_margin_window_input.setRange(5, 100)
         self.open_margin_window_input.setValue(10)
+        self.open_margin_window_input.setGroupSeparatorShown(True)
         margin_layout.addWidget(self.open_margin_window_input, 1, 1)
-        update_open_margin_window_btn = QPushButton("Update Open Margin Window")
+        update_open_margin_window_btn = QPushButton("Update")
         update_open_margin_window_btn.clicked.connect(self.update_open_margin_window)
         margin_layout.addWidget(update_open_margin_window_btn, 1, 2)
 
         # Close Trigger Margin
-        margin_layout.addWidget(QLabel("Close Trigger Margin (bps):"), 2, 0)
+        margin_layout.addWidget(QLabel("Sell Trigger Margin (bps):"), 2, 0)
         self.close_margin_input = QSpinBox()
+        self.close_margin_input.setLocale(turkish_locale)
         self.close_margin_input.setRange(-1000, 1000)
         self.close_margin_input.setValue(40)
+        self.close_margin_input.setGroupSeparatorShown(True)
         margin_layout.addWidget(self.close_margin_input, 2, 1)
-        update_close_btn = QPushButton("Update Close Trigger Margin")
+        update_close_btn = QPushButton("Update")
         update_close_btn.clicked.connect(self.update_close_trigger_margin)
         margin_layout.addWidget(update_close_btn, 2, 2)
 
         # Combined update button for close margins that spans two rows
-        update_close_combined_btn = QPushButton("Update All Sell Margins")
+        update_close_combined_btn = QPushButton("Update Sell Margins\n(without exceptionals)")
         update_close_combined_btn.clicked.connect(self.update_close_trigger_margin_and_window)
         update_close_combined_btn.setMinimumHeight(50)  # Make it taller to span two rows
         margin_layout.addWidget(update_close_combined_btn, 2, 3, 2, 1)  # span 2 rows
 
         # Close Margin Window
-        margin_layout.addWidget(QLabel("Close Margin Window (bps):"), 3, 0)
+        margin_layout.addWidget(QLabel("Sell Margin Window (bps):"), 3, 0)
         self.close_margin_window_input = QSpinBox()
+        self.close_margin_window_input.setLocale(turkish_locale)
         self.close_margin_window_input.setRange(5, 100)
         self.close_margin_window_input.setValue(10)
+        self.close_margin_window_input.setGroupSeparatorShown(True)
         margin_layout.addWidget(self.close_margin_window_input, 3, 1)
-        update_close_margin_window_btn = QPushButton("Update Close Margin Window")
+        update_close_margin_window_btn = QPushButton("Update")
         update_close_margin_window_btn.clicked.connect(self.update_close_margin_window)
         margin_layout.addWidget(update_close_margin_window_btn, 3, 2)
 
+
+        # Buy & SellAggression
+        margin_layout.addWidget(QLabel("Buy/Sell Aggression (bps):"), 4, 0)
+        self.open_aggression_input = QSpinBox()
+        self.open_aggression_input.setLocale(turkish_locale)
+        self.open_aggression_input.setRange(1, 20)
+        self.open_aggression_input.setValue(2)
+        self.open_aggression_input.setGroupSeparatorShown(True)
+        margin_layout.addWidget(self.open_aggression_input, 4, 1)
+       
+        self.close_aggression_input = QSpinBox()
+        self.close_aggression_input.setLocale(turkish_locale)
+        self.close_aggression_input.setRange(1, 20)
+        self.close_aggression_input.setValue(2)
+        self.close_aggression_input.setGroupSeparatorShown(True)
+        margin_layout.addWidget(self.close_aggression_input, 4, 2)
+
+        update_buy_sell_aggressions_btn = QPushButton("Update")
+        update_buy_sell_aggressions_btn.clicked.connect(self.update_buy_sell_aggressions)
+        margin_layout.addWidget(update_buy_sell_aggressions_btn, 4, 3)
+
+       
+
+       
+
         # Move Threshold
-        margin_layout.addWidget(QLabel("Move Threshold (bps):"), 4, 0)
+        margin_layout.addWidget(QLabel("Move Threshold (bps):"), 5, 0)
         self.move_threshold_input = QSpinBox()
+        self.move_threshold_input.setLocale(turkish_locale)
         self.move_threshold_input.setRange(1, 1000)
         self.move_threshold_input.setSingleStep(1)
+        self.move_threshold_input.setGroupSeparatorShown(True)
         try:
             # Try to get initial value from Redis thresholds
             thresholds_data = self.redis.get('maker_arbitrage_thresholds')
@@ -3915,112 +3696,212 @@ class ArbitrageMonitor(QMainWindow):
         except Exception as e:
             logging.error(f"Error getting move threshold: {e}")
             self.move_threshold_input.setValue(15)
-        margin_layout.addWidget(self.move_threshold_input, 4, 1)
-        update_move_threshold_btn = QPushButton("Update Move Threshold")
-        update_move_threshold_btn.clicked.connect(self.update_move_threshold)
-        update_move_threshold_btn.setStyleSheet("text-align: center;")
-        margin_layout.addWidget(update_move_threshold_btn, 4, 2)
-        
-        # Update All Margins button - spans two rows with bold text
-        update_all_margins_btn = QPushButton("Update All Margins")
-        update_all_margins_btn.clicked.connect(self.update_all_margins)
-        update_all_margins_btn.setStyleSheet("text-align: center; font-weight: bold;")
-        update_all_margins_btn.setMinimumHeight(50)  # Make it taller to span two rows
-        margin_layout.addWidget(update_all_margins_btn, 4, 3, 2, 1)  # span 2 rows
+        margin_layout.addWidget(self.move_threshold_input, 5, 1)
+
 
         # Exceptional Margin
-        self.exceptional_margin_checkbox = QCheckBox("Exceptional Margin")
-        margin_layout.addWidget(self.exceptional_margin_checkbox, 5, 0)
-        set_reset_exceptional_btn = QPushButton("Set/Reset Exceptional Margin")
-        set_reset_exceptional_btn.clicked.connect(self.set_reset_exceptional_margin)
-        set_reset_exceptional_btn.setStyleSheet("text-align: center;")
-        margin_layout.addWidget(set_reset_exceptional_btn, 5, 1, 1, 2)
+        self.exceptional_margin_checkbox = QCheckBox("Exceptional")
+        margin_layout.addWidget(self.exceptional_margin_checkbox, 5, 2)
+        update_move_and_exceptional_threshold_btn = QPushButton("Update")
+        update_move_and_exceptional_threshold_btn.clicked.connect(self.update_move_and_exceptional_threshold)
+        margin_layout.addWidget(update_move_and_exceptional_threshold_btn, 5, 3)
 
-        # Right side - Order controls
+        # Middle - Global Settings
+        global_group = QGroupBox("Global Settings")
+        global_group.setStyleSheet("QGroupBox { font-weight: bold; border: 2px solid #555555; border-radius: 5px; margin-top: 1ex; padding-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }")
+        global_layout = QGridLayout(global_group)
+        
+
+        
+        # Create checkbox to toggle
+        self.auto_update_buy_checkbox = QCheckBox("Enable")
+        self.auto_update_buy_checkbox.stateChanged.connect(self.toggle_auto_update_buy_order_amounts)
+        
+        # Load saved state from Redis
+        try:
+            saved_state = self.redis.get('maker_AutoUpdateBuyOrderEnabled')
+            if saved_state and saved_state.decode('utf-8') == '1':
+                self.auto_update_buy_checkbox.setChecked(True)
+                self.auto_update_buy_indicator.setStyleSheet("background-color: orange; border: 1px solid #777777;")
+        except Exception as e:
+            logging.error(f"Error loading auto-update buy order state: {e}")
+        
+        # Load values from Redis for labels
+        saved_buy_period = 10
+        saved_target_tl = 750000
+        saved_range_period = 15
+        try:
+            buy_period_data = self.redis.get('maker_AutoUpdateBuyOrderPeriod')
+            if buy_period_data:
+                saved_buy_period = int(buy_period_data.decode('utf-8'))
+        except Exception as e:
+            logging.error(f"Error loading auto-update buy order period: {e}")
+        try:
+            target_tl_data = self.redis.get('maker_TargetAccountFreeTL')
+            if target_tl_data:
+                saved_target_tl = float(target_tl_data.decode('utf-8'))
+        except Exception as e:
+            logging.error(f"Error loading target account free TL: {e}")
+        try:
+            range_period_data = self.redis.get('maker_AutoRangeMarginUpdatePeriod')
+            if range_period_data:
+                saved_range_period = int(range_period_data.decode('utf-8'))
+        except Exception as e:
+            logging.error(f"Error loading auto range margin update period: {e}")
+        
+        # Auto update buy order amounts
+        auto_update_enabled = "Enabled" if self.auto_update_buy_checkbox.isChecked() else "Disabled"
+        self.auto_update_buy_label = QLabel(f"Auto update buy order amounts: ({auto_update_enabled})")
+        global_layout.addWidget(self.auto_update_buy_label, 0, 0)
+        global_layout.addWidget(self.auto_update_buy_checkbox, 0, 1)
+       
+
+        # Auto update buy order amounts period
+        self.auto_update_buy_period_label = QLabel(f"Auto update buy order amounts period (s): ({saved_buy_period})")
+        global_layout.addWidget(self.auto_update_buy_period_label, 1, 0)
+        self.auto_update_buy_period_input = QSpinBox()
+        self.auto_update_buy_period_input.setLocale(turkish_locale)
+        self.auto_update_buy_period_input.setRange(10, 60)
+        self.auto_update_buy_period_input.setSingleStep(5)
+        self.auto_update_buy_period_input.setValue(saved_buy_period)
+        global_layout.addWidget(self.auto_update_buy_period_input, 1, 1)
+        update_buy_period_btn = QPushButton("Update")
+        update_buy_period_btn.clicked.connect(self.update_auto_update_buy_period)
+        global_layout.addWidget(update_buy_period_btn, 1, 2)
+        
+        # Target Account Free TL
+        formatted_target_tl = f"{int(saved_target_tl):,}".replace(',', '.')
+        self.target_account_free_tl_label = QLabel(f"Target Account Free TL: ({formatted_target_tl})")
+        global_layout.addWidget(self.target_account_free_tl_label, 2, 0)
+        self.target_account_free_tl_input = QDoubleSpinBox()
+        self.target_account_free_tl_input.setLocale(turkish_locale)
+        self.target_account_free_tl_input.setRange(0, 1000000)
+        self.target_account_free_tl_input.setSingleStep(5000)
+        self.target_account_free_tl_input.setDecimals(0)
+        self.target_account_free_tl_input.setValue(saved_target_tl)
+        self.target_account_free_tl_input.setGroupSeparatorShown(True)
+        global_layout.addWidget(self.target_account_free_tl_input, 2, 1)
+        update_target_tl_btn = QPushButton("Update")
+        update_target_tl_btn.clicked.connect(self.update_target_account_free_tl)
+        global_layout.addWidget(update_target_tl_btn, 2, 2)
+        
+        # Auto Range Margin Update Period
+        self.auto_range_margin_period_label = QLabel(f"Auto Range Margin Update Period (s): ({saved_range_period})")
+        global_layout.addWidget(self.auto_range_margin_period_label, 3, 0)
+        self.auto_update_interval_input = QSpinBox()
+        self.auto_update_interval_input.setLocale(turkish_locale)
+        self.auto_update_interval_input.setRange(10, 60)
+        self.auto_update_interval_input.setSingleStep(5)
+        self.auto_update_interval_input.setValue(saved_range_period)
+
+        self.auto_update_interval_input.valueChanged.connect(self.update_auto_update_interval)
+        global_layout.addWidget(self.auto_update_interval_input, 3, 1)
+        update_range_period_btn = QPushButton("Update")
+        update_range_period_btn.clicked.connect(self.update_auto_range_margin_period)
+        global_layout.addWidget(update_range_period_btn, 3, 2)
+        
+        # Right side - Order Settings (reorganized to match image)
         order_group = QGroupBox("Order Settings")
         order_group.setStyleSheet("QGroupBox { font-weight: bold; border: 2px solid #555555; border-radius: 5px; margin-top: 1ex; padding-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }")
         order_layout = QGridLayout(order_group)
         
-        # Min BuyOrder
-        order_layout.addWidget(QLabel("Min Buy Order Amount (TRY):"), 0, 0)
-        self.min_buy_order_input = QSpinBox()
-        self.min_buy_order_input.setRange(1000, 100000)
-        self.min_buy_order_input.setSingleStep(1000)
-        self.min_buy_order_input.setValue(1000)
-        order_layout.addWidget(self.min_buy_order_input, 0, 1)
-        update_min_buy_order_btn = QPushButton("Update Min Buy Order Amount")
-        update_min_buy_order_btn.clicked.connect(self.update_min_buy_order)
-        update_min_buy_order_btn.setStyleSheet("text-align: center;")
-        order_layout.addWidget(update_min_buy_order_btn, 0, 2)
+        # Buy Order Amount TL (Norm)
+        order_layout.addWidget(QLabel("Buy Order Amount TL (Norm):"), 0, 0)
+        self.buy_order_amount_input = QSpinBox()
+        self.buy_order_amount_input.setLocale(turkish_locale)
+        self.buy_order_amount_input.setRange(5000, 200000)
+        self.buy_order_amount_input.setSingleStep(5000)
+        self.buy_order_amount_input.setValue(40000)
+        self.buy_order_amount_input.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.buy_order_amount_input.setGroupSeparatorShown(True)
+        order_layout.addWidget(self.buy_order_amount_input, 0, 1, 1, 2)
+        update_buy_order_amount_btn = QPushButton("Update")
+        update_buy_order_amount_btn.clicked.connect(self.update_buy_order_amount)
+        order_layout.addWidget(update_buy_order_amount_btn, 0, 3)
         
-        # Min Sell Order
-        order_layout.addWidget(QLabel("Min Sell Order Amount (TRY):"), 1, 0)
+        # Buy Order Amount Limits TL (Min/Max)
+        order_layout.addWidget(QLabel("Buy Order Amount Limits TL (Min/Max):"), 1, 0)
+        self.min_buy_order_input = QSpinBox()
+        self.min_buy_order_input.setLocale(turkish_locale)
+        self.min_buy_order_input.setRange(5000, 100000)
+        self.min_buy_order_input.setSingleStep(5000)
+        self.min_buy_order_input.setValue(5000)
+        self.min_buy_order_input.setGroupSeparatorShown(True)
+        order_layout.addWidget(self.min_buy_order_input, 1, 1)
+        self.max_buy_order_input = QSpinBox()
+        self.max_buy_order_input.setLocale(turkish_locale)
+        self.max_buy_order_input.setRange(5000, 200000)
+        self.max_buy_order_input.setSingleStep(5000)
+        self.max_buy_order_input.setValue(100000)
+        self.max_buy_order_input.setGroupSeparatorShown(True)
+        # Connect max buy order input to update buy order amount maximum
+        self.max_buy_order_input.valueChanged.connect(self.update_buy_order_amount_maximum)
+        order_layout.addWidget(self.max_buy_order_input, 1, 2)
+        update_buy_order_amounts_btn = QPushButton("Update")
+        update_buy_order_amounts_btn.clicked.connect(self.update_buy_order_amounts)
+        order_layout.addWidget(update_buy_order_amounts_btn, 1, 3)
+    
+        # Sell Order Amount Limits TL (Min/Max)
+        order_layout.addWidget(QLabel("Sell Order Amount Limits TL (Min/Max):"), 2, 0)
         self.min_sell_order_input = QSpinBox()
+        self.min_sell_order_input.setLocale(turkish_locale)
         self.min_sell_order_input.setRange(1000, 100000)
         self.min_sell_order_input.setSingleStep(1000)
         self.min_sell_order_input.setValue(1000)
-        order_layout.addWidget(self.min_sell_order_input, 1, 1)
-        update_min_sell_order_btn = QPushButton("Update Min Sell Order Amount")
-        update_min_sell_order_btn.clicked.connect(self.update_min_sell_order)
-        update_min_sell_order_btn.setStyleSheet("text-align: center;")
-        order_layout.addWidget(update_min_sell_order_btn, 1, 2)
+        self.min_sell_order_input.setGroupSeparatorShown(True)
+        order_layout.addWidget(self.min_sell_order_input, 2, 1)
+        self.max_sell_order_input = QSpinBox()
+        self.max_sell_order_input.setLocale(turkish_locale)
+        self.max_sell_order_input.setRange(0, 200000)
+        self.max_sell_order_input.setSingleStep(5000)
+        self.max_sell_order_input.setValue(120000)
+        self.max_sell_order_input.setGroupSeparatorShown(True)
+        order_layout.addWidget(self.max_sell_order_input, 2, 2)
+        update_sell_order_amounts_btn = QPushButton("Update")
+        update_sell_order_amounts_btn.clicked.connect(self.update_sell_order_amounts)
+        order_layout.addWidget(update_sell_order_amounts_btn, 2, 3)
         
-        # Max Position
-        order_layout.addWidget(QLabel("Max Position Amount(TRY):"), 2, 0)
+        # Sell Order Amount Ratio (Min/Max)
+        order_layout.addWidget(QLabel("Sell Order Amount Ratio (Min/Max):"), 3, 0)
+        self.sell_order_min_ratio_input = QDoubleSpinBox()
+        self.sell_order_min_ratio_input.setRange(0.0, 1.0)
+        self.sell_order_min_ratio_input.setSingleStep(0.1)
+        self.sell_order_min_ratio_input.setDecimals(1)
+        self.sell_order_min_ratio_input.setValue(0.4)
+        self.sell_order_min_ratio_input.valueChanged.connect(self.validate_min_ratio_changed)
+        order_layout.addWidget(self.sell_order_min_ratio_input, 3, 1)
+        self.sell_order_max_ratio_input = QDoubleSpinBox()
+        self.sell_order_max_ratio_input.setRange(0.0, 1.0)
+        self.sell_order_max_ratio_input.setSingleStep(0.1)
+        self.sell_order_max_ratio_input.setDecimals(1)
+        self.sell_order_max_ratio_input.setValue(0.6)
+        self.sell_order_max_ratio_input.valueChanged.connect(self.validate_max_ratio_changed)
+        order_layout.addWidget(self.sell_order_max_ratio_input, 3, 2)
+        sell_ratio_widget = QWidget()
+        update_sell_ratios_btn = QPushButton("Update")
+        update_sell_ratios_btn.clicked.connect(self.update_sell_ratios)
+        order_layout.addWidget(update_sell_ratios_btn, 3, 3)
+        
+        # Max Position Amount (TL)
+        order_layout.addWidget(QLabel("Max Position Amount (TL):"), 4, 0)
         self.max_position_input = QSpinBox()
-        self.max_position_input.setRange(10000, 1000000)
+        self.max_position_input.setLocale(turkish_locale)
+        self.max_position_input.setRange(5000, 1000000)
         self.max_position_input.setSingleStep(5000)
         self.max_position_input.setValue(100000)
-        order_layout.addWidget(self.max_position_input, 2, 1)
-        update_max_btn = QPushButton("Update Max Position Amount")
+        self.max_position_input.setGroupSeparatorShown(True)
+        order_layout.addWidget(self.max_position_input, 4, 1, 1, 2)  # Span columns 1 and 2
+        update_max_btn = QPushButton("Update")
         update_max_btn.clicked.connect(self.update_max_position)
-        update_max_btn.setStyleSheet("text-align: center;")
-        order_layout.addWidget(update_max_btn, 2, 2)
+        order_layout.addWidget(update_max_btn, 4, 3)
 
-         # Balance Update & Check Interval
-        order_layout.addWidget(QLabel("Balance Update & Check Interval (sec):"), 3, 0)
-        self.balance_update_check_interval_input = QSpinBox()
-        self.balance_update_check_interval_input.setRange(10, 600)
-        self.balance_update_check_interval_input.setSingleStep(10)
-        try:
-            initial_balance_update_check_interval = int(self.redis.get('maker_BalanceUpdateCheckInterval'))
-            self.balance_update_check_interval_input.setValue(initial_balance_update_check_interval)
-        except Exception as e:
-            logging.error(f"Error getting balance update check interval: {e}")
-            self.balance_update_check_interval_input.setValue(1000)
-        order_layout.addWidget(self.balance_update_check_interval_input, 3, 1)
-        update_balance_update_check_interval_btn = QPushButton("Update Balance Check Interval")
-        update_balance_update_check_interval_btn.clicked.connect(self.update_balance_update_check_interval)
-        update_balance_update_check_interval_btn.setStyleSheet("text-align: center;")
-        order_layout.addWidget(update_balance_update_check_interval_btn, 3, 2)
-
-         # Open Aggression
-        order_layout.addWidget(QLabel("Open Aggression (bps):"), 4, 0)
-        self.open_aggression_input = QSpinBox()
-        self.open_aggression_input.setRange(1, 20)
-        self.open_aggression_input.setValue(2)
-        order_layout.addWidget(self.open_aggression_input, 4, 1)
-        update_open_aggression_btn = QPushButton("Update Open Aggression")
-        update_open_aggression_btn.clicked.connect(self.update_open_aggression)
-        update_open_aggression_btn.setStyleSheet("text-align: center;")
-        order_layout.addWidget(update_open_aggression_btn, 4, 2)
-
-          # Close Aggression
-        order_layout.addWidget(QLabel("Close Aggression (bps):"), 5, 0)
-        self.close_aggression_input = QSpinBox()
-        self.close_aggression_input.setRange(1, 20)
-        self.close_aggression_input.setValue(2)
-        order_layout.addWidget(self.close_aggression_input, 5, 1)
-        update_close_aggression_btn = QPushButton("Update Close Aggression")
-        update_close_aggression_btn.clicked.connect(self.update_close_aggression)
-        update_close_aggression_btn.setStyleSheet("text-align: center;")
-        order_layout.addWidget(update_close_aggression_btn, 5, 2)
-
-        # Add groups to controls layout
-        controls_layout.addWidget(margin_group)
-        controls_layout.addWidget(order_group)
+        # Add groups to controls layout - 3 group boxes side by side
+        controls_layout.addWidget(margin_group, 1)
+        controls_layout.addWidget(global_group, 1)
+        controls_layout.addWidget(order_group, 1)
         
-        controls_panel.setMaximumHeight(230)
+        # Set fixed height for controls panel to prevent window expansion
+        controls_panel.setFixedHeight(230)
         
         # Add controls panel to main layout
         settings_layout.addWidget(controls_panel)
@@ -4042,26 +3923,36 @@ class ArbitrageMonitor(QMainWindow):
         filter_group.setStyleSheet("QGroupBox { font-weight: bold; border: 2px solid #555555; border-radius: 5px; margin-top: 1ex; padding-top: 10px; } QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 5px 0 5px; }")
         filter_group_layout = QVBoxLayout(filter_group)
         
-        # Search box
+        # Search box with clear button on the right
         filter_group_layout.addWidget(QLabel("Search Symbol:"))
+        search_layout = QHBoxLayout()
         self.symbol_search_input = QLineEdit()
         self.symbol_search_input.setPlaceholderText("Type to search symbols...")
         self.symbol_search_input.textChanged.connect(self.filter_symbols)
         self.symbol_search_input.textEdited.connect(self.convert_to_uppercase)
-        filter_group_layout.addWidget(self.symbol_search_input)
+        search_layout.addWidget(self.symbol_search_input)
         
-        # Clear button for search
+        # Clear button for search (on the right of input)
         clear_btn = QPushButton("Clear")
         clear_btn.clicked.connect(lambda: self.symbol_search_input.clear())
-        filter_group_layout.addWidget(clear_btn)
+        search_layout.addWidget(clear_btn)
+        filter_group_layout.addLayout(search_layout)
 
         filter_group_layout.addSpacing(10)
-        filter_group_layout.addWidget(QLabel("Select by Current Position:"))
+        
+        # Range Margins label with Select All checkbox on the right
+        range_margins_layout = QHBoxLayout()
+        range_margins_layout.addWidget(QLabel("Range Margins:"))
+        range_margins_layout.addStretch()
+        # Select All checkbox
+        self.select_all_ranges_checkbox = QCheckBox("Select All")
+        self.select_all_ranges_checkbox.stateChanged.connect(self.toggle_all_range_selections)
+        range_margins_layout.addWidget(self.select_all_ranges_checkbox)
+        filter_group_layout.addLayout(range_margins_layout)
 
-        self.range_list = ["Select All", "Up to 100K", "100K - 200K", "200K - 300K", "300K - 400K", "400K - 500K", "500K - 600K", "600K - 700K", "700K - 800K", "800K - 900K", "900K+"]
-        # Define the range boundaries
+        # Define the range boundaries (excluding "Select All")
+        self.range_list = ["Up to 100K", "100K - 200K", "200K - 300K", "300K - 400K", "400K - 500K", "500K - 600K", "600K - 700K", "700K - 800K", "800K - 900K", "900K+"]
         self.range_boundaries = {
-            "Select All": (0, 1000000000),
             "Up to 100K": (0, 100000),
             "100K - 200K": (100000, 200000),
             "200K - 300K": (200000, 300000),
@@ -4074,19 +3965,116 @@ class ArbitrageMonitor(QMainWindow):
             "900K+": (900000, 10000000)
         }
         
-        # Multi-select list box for position ranges
-        self.range_listbox = QListWidget()
-        self.range_listbox.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
-        self.range_listbox.addItems(self.range_list)
-        self.range_listbox.setCurrentRow(0)
-        self.range_listbox.itemSelectionChanged.connect(self.filter_symbols_by_position_ranges)
-        filter_group_layout.addWidget(self.range_listbox)
+        # Initialize range margins storage (open, close in bps)
+        self.range_margins = {}
+        for range_name in self.range_list:
+            self.range_margins[range_name] = {"open": 40, "close": 40}  # Default values
+        
+        # Create table widget for range inputs with row selection
+        self.range_table = QTableWidget()
+        self.range_table.setColumnCount(3)
+        self.range_table.setHorizontalHeaderLabels(["Range", "Open", "Close"])
+        self.range_table.setRowCount(len(self.range_list))
+        self.range_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.range_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.range_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.range_table.setAlternatingRowColors(True)
+        self.range_table.verticalHeader().setVisible(False)
+        # Set height to accommodate all 10 ranges without scrollbar (approx 30px per row + header)
+        self.range_table.setMinimumHeight(350)
+        self.range_table.setMaximumHeight(600)
+        
+        # Set column widths to avoid horizontal scrolling
+        header = self.range_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)  # Range column stretches
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)    # Open column fixed
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)    # Close column fixed
+        self.range_table.setColumnWidth(1, 70)  # Open column width
+        self.range_table.setColumnWidth(2, 70)  # Close column width
+        
+        # Store range input widgets for later access
+        self.range_inputs = {}
+        
+        # Populate table with ranges and inputs
+        for i, range_name in enumerate(self.range_list):
+            # Range name (read-only)
+            range_item = QTableWidgetItem(range_name)
+            range_item.setFlags(range_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.range_table.setItem(i, 0, range_item)
+            
+            # Open margin input
+            open_input = QSpinBox()
+            open_input.setLocale(turkish_locale)
+            open_input.setRange(-1000, 1000)
+            open_input.setValue(self.range_margins[range_name]["open"])
+            open_input.setGroupSeparatorShown(True)
+            open_input.setMinimumWidth(65)
+            open_input.setMaximumWidth(65)
+            self.range_table.setCellWidget(i, 1, open_input)
+            
+            # Close margin input
+            close_input = QSpinBox()
+            close_input.setLocale(turkish_locale)
+            close_input.setRange(-1000, 1000)
+            close_input.setValue(self.range_margins[range_name]["close"])
+            close_input.setGroupSeparatorShown(True)
+            close_input.setMinimumWidth(65)
+            close_input.setMaximumWidth(65)
+            self.range_table.setCellWidget(i, 2, close_input)
+            
+            # Store inputs
+            self.range_inputs[range_name] = {"open": open_input, "close": close_input}
+        
+        # Connect selection change to filter function
+        self.range_table.itemSelectionChanged.connect(self.filter_symbols_by_position_ranges)
+        
+        # Enable toggle selection (clicking selected row deselects it)
+        self.range_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        # Track mouse state for drag detection
+        self.range_table_mouse_press_pos = None
+        self.range_table_is_dragging = False
+        # Override mouse events to enable toggle selection on click and drag selection
+        self.range_table.mousePressEvent = self.range_table_mouse_press_event
+        self.range_table.mouseMoveEvent = self.range_table_mouse_move_event
+        self.range_table.mouseReleaseEvent = self.range_table_mouse_release_event
+        
+        filter_group_layout.addWidget(self.range_table)
+        
+        # Save Range Margins button
+        save_range_margins_btn = QPushButton("Save Range Margins")
+        save_range_margins_btn.clicked.connect(self.save_range_margins)
+        filter_group_layout.addWidget(save_range_margins_btn)
+        
+        # Auto Update ALL checkbox
+        self.auto_update_all_checkbox = QCheckBox("Auto Update ALL")
+        self.auto_update_all_checkbox.setStyleSheet("QCheckBox { color: orange; }")
+        self.auto_update_all_checkbox.stateChanged.connect(self.toggle_auto_update)
+        filter_group_layout.addWidget(self.auto_update_all_checkbox)
+        
+        # Initialize auto-update timer
+        self.auto_update_timer = QTimer()
+        self.auto_update_timer.timeout.connect(self.auto_update_range_margins)
+        
+        # Load saved range margins from Redis
+        try:
+            saved_margins_data = self.redis.get('maker_range_margins')
+            if saved_margins_data:
+                saved_margins = json.loads(saved_margins_data.decode('utf-8'))
+                # Update range_margins and input fields
+                for range_name, margins in saved_margins.items():
+                    if range_name in self.range_margins and range_name in self.range_inputs:
+                        self.range_margins[range_name] = margins
+                        self.range_inputs[range_name]["open"].setValue(margins.get("open", 40))
+                        self.range_inputs[range_name]["close"].setValue(margins.get("close", 40))
+                logging.info("Loaded saved range margins from Redis")
+        except Exception as e:
+            logging.warning(f"Could not load saved range margins: {e}")
         
         filter_layout.addWidget(filter_group)
         filter_layout.addStretch()  # Push everything to top
         
-        # Set fixed width for filter column
-        filter_widget.setFixedWidth(250)
+        # Set fixed width for filter column (wider to avoid horizontal scrollbar)
+        filter_widget.setFixedWidth(350)
         bottom_splitter.addWidget(filter_widget)
         
         # --- COLUMN 2: TABLE ---
@@ -4104,17 +4092,26 @@ class ArbitrageMonitor(QMainWindow):
         # Set up columns
         self.settings_columns = ["Symbol", "Open Trigger Margin (bps)", "Open Margin Window (bps)", "Open Aggression (bps)",
                    "Close Trigger Margin (bps)", "Close Margin Window (bps)", "Close Aggression (bps)", 
-                   "Min Buy Order (TRY)", "Min Sell Order (TRY)", "Max Position (TRY)", "Current Position (TRY)", "Move Threshold (bps)", "Exceptional Margin"]
+                   "Min Buy Order (TRY)", "Buy Order Amount (TRY)", "Max Buy Order (TRY)", 
+                   "Min Sell Order (TRY)", "Max Sell Order (TRY)", 
+                   "Min Sell Ratio", "Max Sell Ratio", "Max Position (TRY)", "Current Position (TRY)", 
+                   "Target Account Free TL (TRY)", "Move Threshold (bps)", "Exceptional Margin"]
         self.settings_columns_essential = ["Symbol", "Open Trigger Margin (bps)", "Open Margin Window (bps)", "Close Trigger Margin (bps)", "Close Margin Window (bps)", "Current Position (TRY)"]
         self.symbol_column_index = 0
         
         # Define column indices for easy maintenance
         self.min_buy_order_column_index = 7
-        self.min_sell_order_column_index = 8
-        self.max_position_column_index = 9
-        self.current_position_TRY_index = 10
-        self.move_threshold_column_index = 11
-        self.exceptional_margin_column_index = 12
+        self.buy_order_amount_column_index = 8
+        self.max_buy_order_column_index = 9
+        self.min_sell_order_column_index = 10
+        self.max_sell_order_column_index = 11
+        self.min_sell_ratio_column_index = 12
+        self.max_sell_ratio_column_index = 13
+        self.max_position_column_index = 14
+        self.current_position_TRY_index = 15
+        self.target_account_free_tl_index = 16
+        self.move_threshold_column_index = 17
+        self.exceptional_margin_column_index = 18
         
         # Use the setup_table method for consistent functionality
         self.setup_table(self.settings_table, self.settings_columns)
@@ -4128,15 +4125,15 @@ class ArbitrageMonitor(QMainWindow):
         table_layout.addWidget(self.settings_table)
         bottom_splitter.addWidget(table_widget)
         
-        # Set splitter proportions (filter column smaller, table larger)
-        bottom_splitter.setSizes([250, 800])
+        # Set splitter proportions (filter column wider, table larger)
+        bottom_splitter.setSizes([350, 800])
         
         # Add bottom splitter to main layout
         settings_layout.addWidget(bottom_splitter)
         
         # Load symbols
         self.load_maker_arbitrage_thresholds()
-        logging.info("Loading BTCTURK balances now!")
+        logging.info("Loading EXCHANGE balances now!")
 
     def update_open_trigger_margin(self):
         """Update open trigger margin for selected symbols"""
@@ -4145,8 +4142,8 @@ class ArbitrageMonitor(QMainWindow):
         self.update_stop_margins()
         # Don't change selection when updating parameters - preserve user's selection
 
-    def update_stop_margins(self):
-        """Update open and close stop margins for selected symbols"""
+    def update_stop_margins(self, symbols_list=None):
+        """Update open and close stop margins for selected symbols or provided symbol list"""
         try:
             # Get arbitrage thresholds from Redis
             settings_data = self.redis.get('maker_arbitrage_thresholds')
@@ -4155,26 +4152,29 @@ class ArbitrageMonitor(QMainWindow):
                 
             thresholds = json.loads(settings_data.decode('utf-8'))
             
-            # Get selected symbols from the symbol table
-            selected_symbols = self.get_selected_symbols()
+            # Get symbols to update - use provided list or get selected symbols
+            if symbols_list is not None:
+                symbols_to_update = symbols_list
+            else:
+                symbols_to_update = self.get_selected_symbols()
             
-            if not selected_symbols:
+            if not symbols_to_update:
                 return
             
-            # Update stop margins for selected symbols
+            # Update stop margins for symbols
             updated_count = 0
             
             if isinstance(thresholds, list):
                 for threshold in thresholds:
                     symbol = threshold.get('Symbol', threshold.get('symbol', ''))
-                    if symbol in selected_symbols:
+                    if symbol in symbols_to_update:
                         # Calculate stop margins
                         threshold['OpenStopMargin'] = threshold['OpenTriggerMargin'] - threshold['OpenMarginWindow']
                         threshold['CloseStopMargin'] = threshold['CloseTriggerMargin'] - threshold['CloseMarginWindow']
                         updated_count += 1
                         logging.info(f"Updated stop margins for {symbol}")
             elif isinstance(thresholds, dict):
-                for symbol in selected_symbols:
+                for symbol in symbols_to_update:
                     if symbol in thresholds:
                         # Calculate stop margins
                         thresholds[symbol]['OpenStopMargin'] = thresholds[symbol]['OpenTriggerMargin'] - thresholds[symbol]['OpenMarginWindow']
@@ -4201,10 +4201,12 @@ class ArbitrageMonitor(QMainWindow):
         self.update_stop_margins()
         # Don't change selection when updating parameters - preserve user's selection
 
-    def update_open_aggression(self):   
-        """Update open aggression for selected symbols"""
-        value = 1 + self.open_aggression_input.value() / 10000
-        self.update_selected_symbols('OpenAggression', value, refresh_table=False)
+    def update_buy_sell_aggressions(self):
+        """Update both buy (open) and sell (close) aggression for selected symbols"""
+        open_value = 1 + self.open_aggression_input.value() / 10000
+        close_value = 1 - self.close_aggression_input.value() / 10000
+        self.update_selected_symbols('OpenAggression', open_value, refresh_table=False)
+        self.update_selected_symbols('CloseAggression', close_value, refresh_table=False)
         # Don't change selection when updating parameters - preserve user's selection
 
     def update_close_trigger_margin(self):
@@ -4221,12 +4223,6 @@ class ArbitrageMonitor(QMainWindow):
         self.update_stop_margins()
         # Don't change selection when updating parameters - preserve user's selection
 
-    def update_close_aggression(self):
-        """Update close aggression for selected symbols"""
-        value = 1 - self.close_aggression_input.value() / 10000
-        self.update_selected_symbols('CloseAggression', value, refresh_table=False)
-        # Don't change selection when updating parameters - preserve user's selection
-        
     def update_open_trigger_margin_and_window(self):
         """Update both open trigger margin and margin window for selected symbols"""
         trigger_value = self.open_margin_input.value() / 10000
@@ -4261,42 +4257,20 @@ class ArbitrageMonitor(QMainWindow):
         # Show success message
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.statusBar().showMessage(f"{current_time} - Updated Close Trigger Margin & Window for selected symbols")
-    
-    def update_all_margins(self):
-        """Update all margin properties (open/close trigger margins, windows, and aggressions) for selected symbols"""
+        
+    def update_move_and_exceptional_threshold(self):
+        """Update move threshold and set/reset exceptional margin flag for selected symbols"""
         try:
-            # Get all margin values from inputs
-            open_trigger_value = self.open_margin_input.value() / 10000
-            open_window_value = self.open_margin_window_input.value() / 10000
-            close_trigger_value = self.close_margin_input.value() / 10000
-            close_window_value = self.close_margin_window_input.value() / 10000
-            open_aggression_value = 1 + self.open_aggression_input.value() / 10000
-            close_aggression_value = 1 - self.close_aggression_input.value() / 10000
+            # Get move threshold value
+            move_threshold_value = self.move_threshold_input.value()
             
-            # Update all margin properties (respect exceptional margin)
-            self.update_selected_symbols('OpenTriggerMargin', open_trigger_value, respect_exceptional_margin=True, refresh_table=False)
-            self.update_selected_symbols('OpenMarginWindow', open_window_value, respect_exceptional_margin=True, refresh_table=False)
-            self.update_selected_symbols('CloseTriggerMargin', close_trigger_value, respect_exceptional_margin=True, refresh_table=False)
-            self.update_selected_symbols('CloseMarginWindow', close_window_value, respect_exceptional_margin=True, refresh_table=False)
-            self.update_selected_symbols('OpenAggression', open_aggression_value, respect_exceptional_margin=True, refresh_table=False)
-            self.update_selected_symbols('CloseAggression', close_aggression_value, respect_exceptional_margin=True, refresh_table=False)
+            # Get exceptional margin value from checkbox
+            exceptional_value = self.exceptional_margin_checkbox.isChecked()
             
-            # Update stop margins (calculated from trigger margins and windows)
-            self.update_stop_margins()
+            # Update move threshold using existing helper function
+            self.update_selected_symbols('MoveThreshold', move_threshold_value, refresh_table=False)
             
-            # Don't change selection when updating parameters - preserve user's selection
-            
-            # Show success message
-            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.statusBar().showMessage(f"{current_time} - Updated All Margins for selected symbols")
-            
-        except Exception as e:
-            logging.error(f"Error updating all margins: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to update all margins: {str(e)}")
-    
-    def set_reset_exceptional_margin(self):
-        """Set or reset exceptional margin flag for selected symbols"""
-        try:
+            # Update exceptional margin
             # Get arbitrage thresholds from Redis
             settings_data = self.redis.get('maker_arbitrage_thresholds')
             if not settings_data:
@@ -4311,11 +4285,6 @@ class ArbitrageMonitor(QMainWindow):
             if not selected_symbols:
                 QMessageBox.warning(self, "Warning", "No symbols selected")
                 return False
-            
-            # Determine if we're setting or resetting based on checkbox state
-            # If checkbox is checked, we're setting exceptional margin
-            # If unchecked, we're resetting it
-            exceptional_value = self.exceptional_margin_checkbox.isChecked()
             
             # Update only selected symbols
             updated_count = 0
@@ -4344,7 +4313,7 @@ class ArbitrageMonitor(QMainWindow):
             # Show success message in status bar
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             action = "Set" if exceptional_value else "Reset"
-            self.statusBar().showMessage(f"{current_time} - {action} Exceptional Margin for {updated_count} symbols: {', '.join(selected_symbols)}")
+            self.statusBar().showMessage(f"{current_time} - Updated Move Threshold ({move_threshold_value}) and {action} Exceptional Margin for {updated_count} symbols: {', '.join(selected_symbols)}")
             
             # Update table cells directly (optimized - no full refresh)
             was_sorting_enabled = self.settings_table.isSortingEnabled()
@@ -4357,21 +4326,50 @@ class ArbitrageMonitor(QMainWindow):
             return True
                 
         except Exception as e:
-            logging.error(f"Set/Reset exceptional margin error: {str(e)}")
-            QMessageBox.critical(self, "Error", f"Failed to set/reset exceptional margin: {str(e)}")
+            logging.error(f"Update move and exceptional threshold error: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to update move and exceptional threshold: {str(e)}")
+            return False
+            for symbol in selected_symbols:
+                self.update_table_cell_for_symbol(symbol, 'ExceptionalMargin', exceptional_value)
+            if was_sorting_enabled:
+                self.settings_table.setSortingEnabled(True)
+            
+            return True
+                
+        except Exception as e:
+            logging.error(f"Update move and exceptional threshold error: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to update move and exceptional threshold: {str(e)}")
             return False
         
-    def update_min_buy_order(self):
-        """Update minimum buy order amount for selected symbols"""
-        value = self.min_buy_order_input.value()
-        self.update_selected_symbols('MinBuyOrderAmount_TRY', value, refresh_table=False)
-        # Don't change selection when updating parameters - preserve user's selection
-        
+    def update_buy_order_amount_maximum(self):
+        """Update the maximum value of buy_order_amount_input based on max_buy_order_input"""
+        max_value = self.max_buy_order_input.value()
+        current_value = self.buy_order_amount_input.value()
+        self.buy_order_amount_input.setMaximum(max_value)
+        # If current value exceeds new maximum, adjust it
+        if current_value > max_value:
+            self.buy_order_amount_input.setValue(max_value)
 
-    def update_min_sell_order(self):
-        """Update minimum sell order amount for selected symbols"""
-        value = self.min_sell_order_input.value()
-        self.update_selected_symbols('MinSellOrderAmount_TRY', value, refresh_table=False)
+    def update_buy_order_amount(self):
+        """Update buy order amount for selected symbols"""
+        value = self.buy_order_amount_input.value()
+        self.update_selected_symbols('BuyOrderAmount_TRY', value, refresh_table=False)
+        # Don't change selection when updating parameters - preserve user's selection
+
+    def update_buy_order_amounts(self):
+        """Update both min and max buy order amounts for selected symbols"""
+        min_value = self.min_buy_order_input.value()
+        max_value = self.max_buy_order_input.value()
+        self.update_selected_symbols('MinBuyOrderAmount_TRY', min_value, refresh_table=False)
+        self.update_selected_symbols('MaxBuyOrderAmount_TRY', max_value, refresh_table=False)
+        # Don't change selection when updating parameters - preserve user's selection
+
+    def update_sell_order_amounts(self):
+        """Update both min and max sell order amounts for selected symbols"""
+        min_value = self.min_sell_order_input.value()
+        max_value = self.max_sell_order_input.value()
+        self.update_selected_symbols('MinSellOrderAmount_TRY', min_value, refresh_table=False)
+        self.update_selected_symbols('MaxSellOrderAmount_TRY', max_value, refresh_table=False)
         # Don't change selection when updating parameters - preserve user's selection
 
     def update_max_position(self):
@@ -4380,11 +4378,38 @@ class ArbitrageMonitor(QMainWindow):
         self.update_selected_symbols('MaxPositionAmount_TRY', value, refresh_table=False)
         # Don't change selection when updating parameters - preserve user's selection
 
-    def update_move_threshold(self):
-        """Update move threshold for selected symbols"""
-        value = self.move_threshold_input.value()
-        self.update_selected_symbols('MoveThreshold', value, refresh_table=False)
+    def validate_min_ratio_changed(self):
+        """When min ratio changes, ensure max ratio >= min ratio"""
+        min_ratio = self.sell_order_min_ratio_input.value()
+        max_ratio = self.sell_order_max_ratio_input.value()
+        
+        if max_ratio < min_ratio:
+            # Adjust max ratio to be at least equal to min ratio
+            self.sell_order_max_ratio_input.blockSignals(True)
+            self.sell_order_max_ratio_input.setValue(min_ratio)
+            self.sell_order_max_ratio_input.blockSignals(False)
+
+    def validate_max_ratio_changed(self):
+        """When max ratio changes, ensure max ratio >= min ratio"""
+        min_ratio = self.sell_order_min_ratio_input.value()
+        max_ratio = self.sell_order_max_ratio_input.value()
+        
+        if max_ratio < min_ratio:
+            # Adjust max ratio to be at least equal to min ratio
+            self.sell_order_max_ratio_input.blockSignals(True)
+            self.sell_order_max_ratio_input.setValue(min_ratio)
+            self.sell_order_max_ratio_input.blockSignals(False)
+
+    def update_sell_ratios(self):
+        """Update both min and max sell ratios for selected symbols"""
+        # Validate before updating
+        self.validate_min_ratio_changed()
+        min_value = self.sell_order_min_ratio_input.value()
+        max_value = self.sell_order_max_ratio_input.value()
+        self.update_selected_symbols('MinSellRatio', min_value, refresh_table=False)
+        self.update_selected_symbols('MaxSellRatio', max_value, refresh_table=False)
         # Don't change selection when updating parameters - preserve user's selection
+
 
     def update_position_gap_threshold(self):
         """Update position gap threshold for selected symbols"""
@@ -4397,15 +4422,6 @@ class ArbitrageMonitor(QMainWindow):
             logging.error(f"Error updating position gap threshold: {e}")
             QMessageBox.critical(self, "Error", f"Error updating position gap threshold: {e}")
 
-    def update_balance_update_check_interval(self):
-        """Update balance update & check interval for selected symbols"""
-        value = self.balance_update_check_interval_input.value()
-        try:
-            self.redis.set('maker_BalanceUpdateCheckInterval', value)
-            self.statusBar().showMessage(f"Updated balance update & check interval: {value} seconds")
-        except Exception as e:
-            logging.error(f"Error updating balance update & check interval: {e}")
-            QMessageBox.critical(self, "Error", f"Error updating balance update & check interval: {e}")
 
     def filter_symbols(self):
         """Filter symbols in the table based on search text"""
@@ -4460,12 +4476,24 @@ class ArbitrageMonitor(QMainWindow):
         self.settings_table.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
 
         """Filter symbols in the table based on multiple selected position ranges"""
-        selected_ranges = [item.text() for item in self.range_listbox.selectedItems()]
+        # Get selected ranges from range table
+        selected_ranges = []
+        if hasattr(self, 'range_table'):
+            selected_rows = self.range_table.selectionModel().selectedRows()
+            for index in selected_rows:
+                row = index.row()
+                range_item = self.range_table.item(row, 0)
+                if range_item:
+                    selected_ranges.append(range_item.text())
+        # Fallback to listbox if range_table doesn't exist yet
+        elif hasattr(self, 'range_listbox'):
+            selected_ranges = [item.text() for item in self.range_listbox.selectedItems()]
         
         if not selected_ranges:
             # If no ranges selected, show all symbols and deselect all rows
             for row in range(self.settings_table.rowCount()):
                 self.settings_table.setRowHidden(row, False)
+                
             # Clear all selections when no ranges are selected
             self.settings_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
             selection_model = self.settings_table.selectionModel()
@@ -4535,9 +4563,577 @@ class ArbitrageMonitor(QMainWindow):
                     index = self.settings_table.model().index(row, 0)
                     selection_model.select(index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows)
 
+    def toggle_all_range_selections(self, state):
+        """Toggle all range rows when Select All is checked/unchecked"""
+        if hasattr(self, 'range_table'):
+            if state == Qt.CheckState.Checked.value or state == 2:  # 2 is Qt.Checked
+                self.range_table.selectAll()
+            else:
+                self.range_table.clearSelection()
+
+    def save_range_margins(self):
+        """Save the current range margin values from input fields"""
+        try:
+            for range_name in self.range_list:
+                if range_name in self.range_inputs:
+                    open_value = self.range_inputs[range_name]["open"].value()
+                    close_value = self.range_inputs[range_name]["close"].value()
+                    self.range_margins[range_name] = {"open": open_value, "close": close_value}
+            
+            # Save to Redis for persistence
+            self.redis.set('maker_range_margins', json.dumps(self.range_margins))
+            
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.statusBar().showMessage(f"{current_time} - Range margins saved successfully")
+            logging.info(f"Range margins saved: {self.range_margins}")
+            
+            # If auto-update is enabled, immediately trigger an update instead of waiting for next period
+            if hasattr(self, 'auto_update_timer') and self.auto_update_timer.isActive():
+                logging.info("Auto-update enabled: Immediately updating range margins after save")
+                self.auto_update_range_margins()
+            
+        except Exception as e:
+            logging.error(f"Error saving range margins: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to save range margins: {str(e)}")
+
+    def range_table_mouse_press_event(self, event):
+        """Custom mouse press event - store position and selection state for drag detection"""
+        self.range_table_mouse_press_pos = event.pos()
+        self.range_table_is_dragging = False
+        
+        # Store selection state before default behavior
+        item = self.range_table.itemAt(event.pos())
+        self._range_table_press_item = item
+        if item:
+            selection_model = self.range_table.selectionModel()
+            self._range_table_press_selection_state = {}
+            for row in range(self.range_table.rowCount()):
+                self._range_table_press_selection_state[row] = selection_model.isRowSelected(
+                    row, self.range_table.rootIndex()
+                )
+        else:
+            self._range_table_press_selection_state = {}
+        
+        # Use default behavior to allow drag selection
+        QTableWidget.mousePressEvent(self.range_table, event)
+
+    def range_table_mouse_move_event(self, event):
+        """Custom mouse move event - detect drag operation"""
+        if self.range_table_mouse_press_pos is not None:
+            # Check if mouse has moved significantly (drag threshold: 3 pixels)
+            drag_distance = (event.pos() - self.range_table_mouse_press_pos).manhattanLength()
+            if drag_distance > 3:
+                self.range_table_is_dragging = True
+        # Use default behavior for drag selection
+        QTableWidget.mouseMoveEvent(self.range_table, event)
+
+    def range_table_mouse_release_event(self, event):
+        """Custom mouse release event - handle toggle on single click"""
+        # Use default behavior first
+        QTableWidget.mouseReleaseEvent(self.range_table, event)
+        
+        # Only toggle if it was a single click (not a drag) on the same item
+        if not self.range_table_is_dragging and hasattr(self, '_range_table_press_item'):
+            release_item = self.range_table.itemAt(event.pos())
+            
+            # Check if press and release were on the same row in column 0 (range name)
+            if (release_item and self._range_table_press_item and 
+                release_item.row() == self._range_table_press_item.row() and
+                release_item.column() == 0 and self._range_table_press_item.column() == 0):
+                
+                row = release_item.row()
+                selection_model = self.range_table.selectionModel()
+                
+                # Check if this row was selected before the mouse press
+                was_selected_before = self._range_table_press_selection_state.get(row, False)
+                is_selected_now = selection_model.isRowSelected(row, self.range_table.rootIndex())
+                
+                # If row was already selected before click and is now selected (single click on selected row), toggle it off
+                # Don't toggle if Ctrl was held (multi-select mode)
+                if was_selected_before and is_selected_now and not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+                    selection_model.select(
+                        self.range_table.model().index(row, 0),
+                        QItemSelectionModel.SelectionFlag.Deselect | QItemSelectionModel.SelectionFlag.Rows
+                    )
+        
+        # Reset drag state
+        self.range_table_mouse_press_pos = None
+        self.range_table_is_dragging = False
+        if hasattr(self, '_range_table_press_selection_state'):
+            delattr(self, '_range_table_press_selection_state')
+        if hasattr(self, '_range_table_press_item'):
+            delattr(self, '_range_table_press_item')
+
+    def update_auto_update_interval(self):
+        """Update the auto-update timer interval if it's currently running"""
+        interval_seconds = self.auto_update_interval_input.value()
+        # Update label
+        self.auto_range_margin_period_label.setText(f"Auto Range Margin Update Period (s): ({interval_seconds})")
+        if self.auto_update_all_checkbox.isChecked():
+            interval_ms = interval_seconds * 1000
+            self.auto_update_timer.stop()
+            self.auto_update_timer.start(interval_ms)
+            logging.info(f"Auto-update interval changed to {interval_seconds} seconds")
+
+    def toggle_auto_update(self, state):
+        """Enable/disable auto-update timer for range margins"""
+        if state == Qt.CheckState.Checked.value or state == 2:  # 2 is Qt.Checked
+            # Get interval from Global Settings input (convert seconds to milliseconds)
+            interval_seconds = self.auto_update_interval_input.value()
+            interval_ms = interval_seconds * 1000
+            # Start timer with adjustable interval
+            self.auto_update_timer.start(interval_ms)
+            logging.info(f"Auto-update range margins enabled ({interval_seconds} second interval)")
+            self.statusBar().showMessage(f"Auto-update range margins enabled ({interval_seconds}s interval)")
+        else:
+            # Stop timer
+            self.auto_update_timer.stop()
+            logging.info("Auto-update range margins disabled")
+            self.statusBar().showMessage("Auto-update range margins disabled")
+    
+    def update_auto_update_buy_period(self):
+        """Update the auto-update buy order amounts period"""
+        try:
+            period = self.auto_update_buy_period_input.value()
+            # Save to Redis
+            self.redis.set('maker_AutoUpdateBuyOrderPeriod', str(period))
+            
+            # Update label
+            self.auto_update_buy_period_label.setText(f"Auto update buy order amounts period (s): ({period})")
+            
+            # Update timer if it's running
+            if hasattr(self, 'auto_update_buy_timer') and self.auto_update_buy_timer.isActive():
+                self.auto_update_buy_timer.stop()
+                self.auto_update_buy_timer.start(period * 1000)
+            
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.statusBar().showMessage(f"{current_time} - Auto-update buy order period updated to {period}s")
+            logging.info(f"Auto-update buy order period updated to {period} seconds")
+        except Exception as e:
+            logging.error(f"Error updating auto-update buy order period: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to update auto-update buy order period: {str(e)}")
+    
+    def update_target_account_free_tl(self):
+        """Update target account free TL"""
+        try:
+            target_tl = self.target_account_free_tl_input.value()
+            # Save to Redis
+            self.redis.set('maker_TargetAccountFreeTL', str(target_tl))
+            
+            # Update label
+            formatted_target_tl = f"{int(target_tl):,}".replace(',', '.')
+            self.target_account_free_tl_label.setText(f"Target Account Free TL: ({formatted_target_tl})")
+            
+            # Update all rows in settings table
+            formatted_value = f"{int(target_tl):,}".replace(',', '.')
+            for row in range(self.settings_table.rowCount()):
+                self.settings_table.setItem(row, self.target_account_free_tl_index, QTableWidgetItem(formatted_value))
+            
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.statusBar().showMessage(f"{current_time} - Target Account Free TL updated to {target_tl:,.0f}")
+            logging.info(f"Target Account Free TL updated to {target_tl}")
+        except Exception as e:
+            logging.error(f"Error updating target account free TL: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to update target account free TL: {str(e)}")
+    
+    def update_auto_range_margin_period(self):
+        """Update the auto range margin update period"""
+        try:
+            period = self.auto_update_interval_input.value()
+            # Save to Redis
+            self.redis.set('maker_AutoRangeMarginUpdatePeriod', str(period))
+            
+            # Update label
+            self.auto_range_margin_period_label.setText(f"Auto Range Margin Update Period (s): ({period})")
+            
+            # Update timer if it's running
+            if self.auto_update_all_checkbox.isChecked():
+                self.auto_update_timer.stop()
+                self.auto_update_timer.start(period * 1000)
+            
+            current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.statusBar().showMessage(f"{current_time} - Auto Range Margin Update Period updated to {period}s")
+            logging.info(f"Auto Range Margin Update Period updated to {period} seconds")
+        except Exception as e:
+            logging.error(f"Error updating auto range margin period: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to update auto range margin period: {str(e)}")
+    
+    def toggle_auto_update_buy_order_amounts(self, state):
+        """Enable/disable auto-update timer for buy order amounts"""
+        try:
+            # Update label
+            auto_update_enabled = "Enabled" if (state == Qt.CheckState.Checked.value or state == 2) else "Disabled"
+            self.auto_update_buy_label.setText(f"Auto update buy order amounts: ({auto_update_enabled})")
+            
+            if state == Qt.CheckState.Checked.value or state == 2:  # 2 is Qt.Checked
+                # Get period from input (convert seconds to milliseconds)
+                period_seconds = self.auto_update_buy_period_input.value()
+                period_ms = period_seconds * 1000
+                # Start timer
+                if not hasattr(self, 'auto_update_buy_timer'):
+                    self.auto_update_buy_timer = QTimer()
+                    self.auto_update_buy_timer.timeout.connect(self.auto_update_buy_order_amounts)
+                self.auto_update_buy_timer.start(period_ms)
+                # Update indicator to orange
+                self.auto_update_buy_indicator.setStyleSheet("background-color: orange; border: 1px solid #777777;")
+                # Save state to Redis
+                self.redis.set('maker_AutoUpdateBuyOrderEnabled', '1')
+                logging.info(f"Auto-update buy order amounts enabled ({period_seconds} second interval)")
+                self.statusBar().showMessage(f"Auto-update buy order amounts enabled ({period_seconds}s interval)")
+            else:
+                # Stop timer
+                if hasattr(self, 'auto_update_buy_timer'):
+                    self.auto_update_buy_timer.stop()
+                # Update indicator to grey
+                self.auto_update_buy_indicator.setStyleSheet("background-color: #555555; border: 1px solid #777777;")
+                # Save state to Redis
+                self.redis.set('maker_AutoUpdateBuyOrderEnabled', '0')
+                logging.info("Auto-update buy order amounts disabled")
+                self.statusBar().showMessage("Auto-update buy order amounts disabled")
+        except Exception as e:
+            logging.error(f"Error toggling auto-update buy order amounts: {e}")
+    
+    def auto_update_buy_order_amounts(self):
+        """Automatically update buy order amounts based on 10-second moving average of free TL balance"""
+        try:
+            # Get thresholds from Redis
+            thresholds_data = self.redis.get('maker_arbitrage_thresholds')
+            if not thresholds_data:
+                logging.warning("Cannot auto-update buy order amounts: thresholds not available")
+                return
+            
+            thresholds = json.loads(thresholds_data.decode('utf-8'))
+            if not isinstance(thresholds, list):
+                logging.warning(f"update_buy_order_by_balance: thresholds is not a list (type: {type(thresholds)}), skipping update")
+                return
+            
+            # Get limits from Redis (MinBuyOrderAmount_TRY and MaxBuyOrderAmount_TRY from first symbol or defaults)
+            buy_order_lower_limit = 10000  # Default lower limit
+            buy_order_upper_limit = 200000  # Default upper limit
+            
+            # Try to get limits from first symbol's thresholds
+            if thresholds and isinstance(thresholds[0], dict):
+                first_symbol = thresholds[0]
+                buy_order_lower_limit = first_symbol.get('MinBuyOrderAmount_TRY', 10000)
+                buy_order_upper_limit = first_symbol.get('MaxBuyOrderAmount_TRY', 200000)
+            
+            # Validate limits
+            if buy_order_upper_limit <= buy_order_lower_limit:
+                logging.error(f"Invalid limits - upper ({buy_order_upper_limit}) must be > lower ({buy_order_lower_limit}), using defaults")
+                buy_order_lower_limit = 10000
+                buy_order_upper_limit = 200000
+            
+            # Get target free TRY from Redis
+            try:
+                target_tl_data = self.redis.get('maker_TargetAccountFreeTL')
+                target_free_try = float(target_tl_data.decode('utf-8')) if target_tl_data else 750000.0
+            except Exception as e:
+                logging.error(f"Error loading target account free TL: {e}")
+                target_free_try = 750000.0
+            
+            # Initialize buy order amounts to a value within limits if not already done
+            if not self.buy_order_initialized:
+                for threshold in thresholds:
+                    if isinstance(threshold, dict):
+                        symbol = threshold.get('Symbol', '')
+                        if not symbol:
+                            continue
+                        # Initialize to a value within limits
+                        initial_value = max(buy_order_lower_limit, min(buy_order_upper_limit, 40000))
+                        threshold['BuyOrderAmount_TRY'] = initial_value
+                self.buy_order_initialized = True
+                logging.info(f"Initialized all buy order amounts to {initial_value} TRY (within limits: {buy_order_lower_limit}-{buy_order_upper_limit})")
+            
+            # Need at least 10 readings for accurate 10-second moving average
+            if not hasattr(self, 'EXCHANGE_balance_history') or len(self.EXCHANGE_balance_history) < 10:
+                history_len = len(self.EXCHANGE_balance_history) if hasattr(self, 'EXCHANGE_balance_history') else 0
+                logging.info(f"Not enough EXCHANGE balance readings yet: {history_len}/10 (need 10 for moving average)")
+                return
+            
+            # Calculate 10-second moving average (using last 10 readings)
+            try:
+                avg_balance = sum(self.EXCHANGE_balance_history) / len(self.EXCHANGE_balance_history)
+                if avg_balance < 0:
+                    logging.warning(f"Negative average balance: {avg_balance}, skipping")
+                    return
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                logging.error(f"Error calculating average balance: {e}")
+                return
+            
+            # Determine if we should increment or decrement based on target
+            # Logic: Less free TL (< target) → REDUCE buy orders (decrement)
+            #        More free TL (> target) → INCREASE buy orders (increment)
+            should_increment = avg_balance > target_free_try
+            logging.info(f"EXCHANGE: avg_balance={avg_balance:,.0f} TL, target={target_free_try:,.0f} TL → {'INCREASE' if should_increment else 'REDUCE'} buy orders")
+            
+            updated_count = 0
+            
+            # Import multiplier calculation functions
+            import arbit_config_maker_BTR as arbit_config
+            
+            # Update buy order amounts for all symbols
+            for threshold in thresholds:
+                if not isinstance(threshold, dict):
+                    continue
+                
+                symbol = threshold.get('Symbol', '')
+                if not symbol:
+                    continue
+                
+                # Get current buy order amount with validation
+                try:
+                    current_buy_order = int(threshold.get('BuyOrderAmount_TRY', 40000))
+                    # Ensure current value is within limits
+                    current_buy_order = max(buy_order_lower_limit, min(buy_order_upper_limit, current_buy_order))
+                except (ValueError, TypeError) as e:
+                    logging.warning(f"Invalid BuyOrderAmount_TRY for {symbol}: {threshold.get('BuyOrderAmount_TRY')}, using default")
+                    current_buy_order = max(buy_order_lower_limit, min(buy_order_upper_limit, 40000))
+                
+                # Calculate multiplier based on current buy_order_amount
+                try:
+                    if should_increment:
+                        multiplier = arbit_config.calculate_increment_multiplier(current_buy_order)
+                        action_str = "INCREASE"
+                    else:
+                        multiplier = arbit_config.calculate_decrement_multiplier(current_buy_order)
+                        action_str = "REDUCE"
+                    
+                    # Validate multiplier
+                    if multiplier <= 0 or not isinstance(multiplier, (int, float)):
+                        logging.warning(f"Invalid multiplier for {symbol}: {multiplier}, skipping update")
+                        continue
+                except Exception as e:
+                    logging.error(f"Error calculating multiplier for {symbol}: {e}")
+                    continue
+                
+                # Calculate new buy order amount
+                try:
+                    new_buy_order = int(current_buy_order * multiplier)
+                except (ValueError, TypeError, OverflowError) as e:
+                    logging.error(f"Error calculating new_buy_order for {symbol}: {e}")
+                    continue
+                
+                # Apply limits
+                new_buy_order = max(buy_order_lower_limit, min(buy_order_upper_limit, new_buy_order))
+                
+                # Only update if there's a meaningful change (more than 1 TRY difference)
+                if abs(new_buy_order - current_buy_order) > 1:
+                    threshold['BuyOrderAmount_TRY'] = new_buy_order
+                    updated_count += 1
+                    logging.info(f"✅ {symbol}: {current_buy_order:,} → {new_buy_order:,} TRY ({action_str} by {multiplier:.3f}x)")
+                else:
+                    logging.debug(f"{symbol}: No change needed ({current_buy_order:,} TRY, multiplier={multiplier:.3f}x would give {new_buy_order:,})")
+            
+            if updated_count > 0:
+                # Save updated thresholds back to Redis
+                self.redis.set('maker_arbitrage_thresholds', json.dumps(thresholds))
+                
+                # Update table cells individually to preserve sorting
+                was_sorting_enabled = self.settings_table.isSortingEnabled()
+                self.settings_table.setSortingEnabled(False)
+                
+                for threshold in thresholds:
+                    if isinstance(threshold, dict):
+                        symbol = threshold.get('Symbol', '')
+                        if symbol and 'BuyOrderAmount_TRY' in threshold:
+                            new_buy_amount = threshold['BuyOrderAmount_TRY']
+                            self.update_table_cell_for_symbol(symbol, 'BuyOrderAmount_TRY', new_buy_amount)
+                
+                if was_sorting_enabled:
+                    self.settings_table.setSortingEnabled(True)
+                
+                # Send command to update thresholds
+                self.redis.publish('arbit_commands', b'update_thresholds')
+                
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                action = "increased" if should_increment else "decreased"
+                target_status = f"above target ({target_free_try:,.0f})" if should_increment else f"below target ({target_free_try:,.0f})"
+                message = f"{current_time} - Auto-updated buy order amounts for {updated_count} symbols"
+                message += f" (Balance: {avg_balance:,.0f} TL {target_status}, {action})"
+                self.statusBar().showMessage(message)
+                logging.info(f"✅ update_buy_order_by_balance: Updated {updated_count} symbols (limits: {buy_order_lower_limit}-{buy_order_upper_limit} TRY)")
+                logging.info(f"   Balance avg: {avg_balance:,.0f} TL ({target_status}) - {action} buy order amount for {updated_count} symbols")
+            else:
+                logging.info(f"⚠️ update_buy_order_by_balance: No updates needed (all changes < 1 TRY or no symbols to update)")
+                
+        except Exception as e:
+            logging.error(f"Error in auto-update buy order amounts: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+
+    def auto_update_range_margins(self):
+        """Automatically update margins based on current positions in table - same mechanism as other update buttons"""
+        try:
+            if not hasattr(self, 'range_margins') or not self.range_margins:
+                return
+            
+            # Get thresholds from Redis
+            thresholds_data = self.redis.get('maker_arbitrage_thresholds')
+            if not thresholds_data:
+                return
+            
+            thresholds = json.loads(thresholds_data.decode('utf-8'))
+            if not isinstance(thresholds, list):
+                return
+            
+            updated_symbols = []
+            excluded_symbols = []
+            
+            # Process each symbol in the table
+            for row in range(self.settings_table.rowCount()):
+                symbol_item = self.settings_table.item(row, 0)
+                if not symbol_item:
+                    continue
+                
+                symbol = symbol_item.text()
+                
+                # Get current position from table
+                position_item = self.settings_table.item(row, self.current_position_TRY_index)
+                if not position_item:
+                    continue
+                
+                try:
+                    position_text = position_item.text()
+                    # Remove ₺ prefix if present
+                    if position_text.startswith('₺'):
+                        position_text = position_text[1:]
+                    # Remove comma separators
+                    position_text = position_text.replace(',', '')
+                    
+                    # Handle NaN values
+                    if position_text.lower() in ['nan', 'none', '']:
+                        continue
+                    
+                    current_position = int(position_text)
+                    
+                    # Find which range this position falls into
+                    matching_range = None
+                    for range_name, (min_pos, max_pos) in self.range_boundaries.items():
+                        if min_pos <= current_position <= max_pos:
+                            matching_range = range_name
+                            break
+                    
+                    if not matching_range or matching_range not in self.range_margins:
+                        continue
+                    
+                    # Get margin values for this range
+                    open_margin_bps = self.range_margins[matching_range]["open"]
+                    close_margin_bps = self.range_margins[matching_range]["close"]
+                    
+                    # Convert to decimal (bps to decimal: divide by 10000)
+                    open_margin = open_margin_bps / 10000
+                    close_margin = close_margin_bps / 10000
+                    
+                    # Find and update the threshold for this symbol
+                    for threshold in thresholds:
+                        if threshold.get('Symbol', '') == symbol:
+                            # Skip symbols with exceptional margin set
+                            if threshold.get('ExceptionalMargin', False):
+                                excluded_symbols.append(symbol)
+                                continue
+                            
+                            # Update margins (same as update_open_trigger_margin_and_window)
+                            threshold['OpenTriggerMargin'] = open_margin
+                            threshold['CloseTriggerMargin'] = close_margin
+                            updated_symbols.append(symbol)
+                            break
+                
+                except (ValueError, AttributeError) as e:
+                    logging.warning(f"Error processing position for {symbol}: {e}")
+                    continue
+            
+            if updated_symbols:
+                # Save updated thresholds back to Redis
+                self.redis.set('maker_arbitrage_thresholds', json.dumps(thresholds))
+                
+                # Update stop margins for all updated symbols (same as other update functions)
+                self.update_stop_margins(symbols_list=updated_symbols)
+                
+                # Update table cells individually to preserve sorting (same as update_selected_symbols)
+                was_sorting_enabled = self.settings_table.isSortingEnabled()
+                self.settings_table.setSortingEnabled(False)
+                
+                # Create a mapping of symbol to margin values for efficient lookup
+                symbol_margin_map = {}
+                for row in range(self.settings_table.rowCount()):
+                    symbol_item = self.settings_table.item(row, 0)
+                    if not symbol_item:
+                        continue
+                    
+                    symbol = symbol_item.text()
+                    if symbol not in updated_symbols:
+                        continue
+                    
+                    position_item = self.settings_table.item(row, self.current_position_TRY_index)
+                    if not position_item:
+                        continue
+                    
+                    try:
+                        position_text = position_item.text().replace('₺', '').replace(',', '')
+                        if position_text.lower() not in ['nan', 'none', '']:
+                            current_position = int(position_text)
+                            # Find matching range
+                            for range_name, (min_pos, max_pos) in self.range_boundaries.items():
+                                if min_pos <= current_position <= max_pos:
+                                    if range_name in self.range_margins:
+                                        open_margin_bps = self.range_margins[range_name]["open"]
+                                        close_margin_bps = self.range_margins[range_name]["close"]
+                                        open_margin = open_margin_bps / 10000
+                                        close_margin = close_margin_bps / 10000
+                                        symbol_margin_map[symbol] = (open_margin, close_margin)
+                                    break
+                    except (ValueError, AttributeError):
+                        pass
+                
+                # Update table cells for all updated symbols
+                for symbol in updated_symbols:
+                    if symbol in symbol_margin_map:
+                        open_margin, close_margin = symbol_margin_map[symbol]
+                        self.update_table_cell_for_symbol(symbol, 'OpenTriggerMargin', open_margin)
+                        self.update_table_cell_for_symbol(symbol, 'CloseTriggerMargin', close_margin)
+                
+                if was_sorting_enabled:
+                    self.settings_table.setSortingEnabled(True)
+                
+                # Send command to update thresholds
+                self.redis.publish('arbit_commands', b'update_thresholds')
+                
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                message = f"{current_time} - Auto-updated margins for {len(updated_symbols)} symbols"
+                if excluded_symbols:
+                    message += f" (Excluded {len(excluded_symbols)} exceptional)"
+                self.statusBar().showMessage(message)
+                logging.info(f"{current_time} - Auto-updated margins for {len(updated_symbols)} symbols")
+                
+        except Exception as e:
+            logging.error(f"Error in auto-update range margins: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+
     def load_maker_arbitrage_thresholds(self):
         """Load arbitrage thresholds from Redis"""
         try:
+            # Save current position values BEFORE clearing the table
+            # This prevents showing zero when the table is rebuilt
+            saved_positions = {}
+            for row in range(self.settings_table.rowCount()):
+                symbol_item = self.settings_table.item(row, 0)
+                position_item = self.settings_table.item(row, self.current_position_TRY_index)
+                if symbol_item and position_item:
+                    symbol = symbol_item.text()
+                    try:
+                        # Extract numeric value from position item
+                        if hasattr(position_item, 'numeric_value'):
+                            # StableNumericTableWidgetItem
+                            saved_positions[symbol] = position_item.numeric_value
+                        else:
+                            # Regular QTableWidgetItem - extract from text
+                            position_text = position_item.text().replace('₺', '').replace(',', '').strip()
+                            if position_text and position_text.lower() not in ['nan', 'none', '']:
+                                saved_positions[symbol] = float(position_text)
+                    except (ValueError, AttributeError):
+                        pass
+            
             # Clear the table
             self.settings_table.setRowCount(0)
             
@@ -4576,11 +5172,10 @@ class ArbitrageMonitor(QMainWindow):
                 if isinstance(open_margin_window, float) and open_margin_window < 1:
                     open_margin_window = int(round(open_margin_window * 10000, 1))  # Convert to basis points
                 self.settings_table.setItem(row, 2, QTableWidgetItem(str(open_margin_window)))
-
+                
                 # Open Aggression
                 open_aggression = item.get('OpenAggression', 0)
-                if isinstance(open_aggression, float) and open_aggression < 1:
-                    open_aggression = int(round(open_aggression * 10000, 1))# Convert to basis points
+                # OpenAggression is stored as decimal (e.g., 1.0002), display as is
                 self.settings_table.setItem(row, 3, QTableWidgetItem(str(open_aggression)))
                 
                 # Close Trigger Margin
@@ -4594,28 +5189,75 @@ class ArbitrageMonitor(QMainWindow):
                 if isinstance(close_margin_window, float) and close_margin_window < 1:
                     close_margin_window = int(round(close_margin_window * 10000, 1))  # Convert to basis points
                 self.settings_table.setItem(row, 5, QTableWidgetItem(str(close_margin_window)))
-
+                
                 # Close Aggression
                 close_aggression = item.get('CloseAggression', 0)
-                if isinstance(close_aggression, float) and close_aggression < 1:
-                    close_aggression = int(round(close_aggression * 10000, 1))  # Convert to basis points
+                # CloseAggression is stored as decimal (e.g., 0.9996), display as is (NOT basis points)
                 self.settings_table.setItem(row, 6, QTableWidgetItem(str(close_aggression)))
                 
-                # Min Buy Order
+                # Min Buy Order Amount
                 min_buy_order = item.get('MinBuyOrderAmount_TRY', 1000)
                 self.settings_table.setItem(row, self.min_buy_order_column_index, QTableWidgetItem(str(min_buy_order)))
                 
-                # Min Sell Order
+                # Buy Order Amount (Normal)
+                buy_order_amount = item.get('BuyOrderAmount_TRY', 1000)
+                self.settings_table.setItem(row, self.buy_order_amount_column_index, QTableWidgetItem(str(buy_order_amount)))
+                
+                # Max Buy Order
+                max_buy_order = item.get('MaxBuyOrderAmount_TRY', 100000)
+                self.settings_table.setItem(row, self.max_buy_order_column_index, QTableWidgetItem(str(max_buy_order)))
+                
+                # Min Sell Order Amount
                 min_sell_order = item.get('MinSellOrderAmount_TRY', 1000)
                 self.settings_table.setItem(row, self.min_sell_order_column_index, QTableWidgetItem(str(min_sell_order)))
+                
+                # Max Sell Order
+                max_sell_order = item.get('MaxSellOrderAmount_TRY', 100000)
+                self.settings_table.setItem(row, self.max_sell_order_column_index, QTableWidgetItem(str(max_sell_order)))
+                
+                # Min Sell Ratio
+                min_sell_ratio = item.get('MinSellRatio', 0.0)
+                self.settings_table.setItem(row, self.min_sell_ratio_column_index, QTableWidgetItem(str(min_sell_ratio)))
+                
+                # Max Sell Ratio
+                max_sell_ratio = item.get('MaxSellRatio', 1.0)
+                self.settings_table.setItem(row, self.max_sell_ratio_column_index, QTableWidgetItem(str(max_sell_ratio)))
                 
                 # Max position
                 max_position = item.get('MaxPositionAmount_TRY', 100000)
                 self.settings_table.setItem(row, self.max_position_column_index, QTableWidgetItem(str(max_position)))
 
-                #Current Position
-                current_position = item.get('CurrentPositionAmount_TRY', 0)
-                self.settings_table.setItem(row, self.current_position_TRY_index, QTableWidgetItem(str(current_position)))
+                #Current Position - use saved value if available, otherwise use value from Redis
+                current_position = item.get('CurrentPositionAmount_TRY', None)
+                
+                # If we have a saved position for this symbol, use it (prevents showing zero)
+                if symbol in saved_positions:
+                    saved_position = saved_positions[symbol]
+                    # Only use saved position if Redis value is 0/None or if saved position is significantly different
+                    if current_position is None or current_position == 0:
+                        # Use saved position if Redis has no value
+                        current_position = saved_position
+                    elif abs(saved_position - current_position) < 0.01:
+                        # Values are essentially the same, use saved to avoid flicker
+                        current_position = saved_position
+                    # Otherwise, use the Redis value (it's a real update)
+                elif current_position is None:
+                    current_position = 0
+                
+                # Always set the position item (use saved value to prevent zero flash)
+                balance_item = self.StableNumericTableWidgetItem(f"₺{current_position:,.0f}", current_position, symbol)
+                balance_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                self.settings_table.setItem(row, self.current_position_TRY_index, balance_item)
+
+                # Target Account Free TL
+                try:
+                    target_tl_data = self.redis.get('maker_TargetAccountFreeTL')
+                    target_account_free_tl = float(target_tl_data.decode('utf-8')) if target_tl_data else 750000
+                except Exception as e:
+                    logging.error(f"Error loading target account free TL: {e}")
+                    target_account_free_tl = 750000
+                formatted_target_tl = f"{int(target_account_free_tl):,}".replace(',', '.')
+                self.settings_table.setItem(row, self.target_account_free_tl_index, QTableWidgetItem(formatted_target_tl))
 
                 # Move Threshold
                 move_threshold = item.get('MoveThreshold', 15)
@@ -4663,7 +5305,12 @@ class ArbitrageMonitor(QMainWindow):
                 'CloseMarginWindow': 0.002,
                 'Maker_Type': 0,
                 'MinBuyOrderAmount_TRY': 1000,
+                'BuyOrderAmount_TRY': 1000,
+                'MaxBuyOrderAmount_TRY': 100000,
                 'MinSellOrderAmount_TRY': 1000,
+                'MaxSellOrderAmount_TRY': 100000,
+                'MinSellRatio': 0.0,
+                'MaxSellRatio': 1.0,
                 'MaxPositionAmount_TRY': 100000,
                 'MoveThreshold': 15,
                 'ExceptionalMargin': False
@@ -4671,101 +5318,6 @@ class ArbitrageMonitor(QMainWindow):
         
         return default_thresholds
 
-    def setup_symbol_management_page(self):
-        """Set up the symbol management page"""
-        # Create layout for symbol management page
-        symbol_mgmt_layout = QVBoxLayout(self.symbol_management_page)
-        
-        # Create header
-        header_widget = QWidget()
-        header_layout = QHBoxLayout(header_widget)
-        
-        # Create two columns
-        left_col = QWidget()
-        right_col = QWidget()
-        left_layout = QVBoxLayout(left_col)
-        right_layout = QVBoxLayout(right_col)
-        
-        # Left column - Current Symbols
-        left_header_widget = QWidget()
-        left_header_layout = QHBoxLayout(left_header_widget)
-        self.left_header = QLabel("Current Symbols (0)")  # Initialize with count
-        self.left_header.setStyleSheet("font-size: 16px; font-weight: bold;")
-        left_header_layout.addWidget(self.left_header)
-        left_header_layout.addStretch()
-        
-        # Add "Select All" checkbox for current symbols
-        self.select_all_current = QCheckBox("Select All")
-        self.select_all_current.stateChanged.connect(self.toggle_all_current_symbols)
-        left_header_layout.addWidget(self.select_all_current)
-        
-        left_layout.addWidget(left_header_widget)
-        
-        # Create current symbols table
-        self.current_symbols_table = QTableWidget()
-        self.current_symbols_table.setColumnCount(3)  # Added checkbox column
-        self.current_symbols_table.setHorizontalHeaderLabels(["Select", "Symbol", "Position (TRY)"])
-        self.current_symbols_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        self.current_symbols_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.current_symbols_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.current_symbols_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        left_layout.addWidget(self.current_symbols_table)
-        
-        # Add remove button
-        remove_btn = QPushButton("Remove Selected")
-        remove_btn.clicked.connect(self.remove_selected_symbols_from_list)
-        left_layout.addWidget(remove_btn)
-        
-        # Right column - Available Symbols
-        right_header_widget = QWidget()
-        right_header_layout = QHBoxLayout(right_header_widget)
-        self.right_header = QLabel("Available Symbols (0)")  # Initialize with count
-        self.right_header.setStyleSheet("font-size: 16px; font-weight: bold;")
-        right_header_layout.addWidget(self.right_header)
-        right_header_layout.addStretch()
-
-        self.right_header_status = QLabel("Label")
-        self.right_header_status.setStyleSheet("font-size: 12px; font-style: italic; color: gray;")
-        right_header_layout.addWidget(self.right_header_status)
-        right_header_layout.addStretch()
-        
-        # Add "Fetch Symbols" button
-        fetch_symbols_btn = QPushButton("Fetch Symbols")
-        fetch_symbols_btn.clicked.connect(self.fetch_and_update_symbols)
-        right_header_layout.addWidget(fetch_symbols_btn)
-        
-        # Add "Select All" checkbox for available symbols
-        self.select_all_available = QCheckBox("Select All")
-        self.select_all_available.stateChanged.connect(self.toggle_all_available_symbols)
-        right_header_layout.addWidget(self.select_all_available)
-        
-        right_layout.addWidget(right_header_widget)
-        
-        # Create available symbols table
-        self.available_symbols_table = QTableWidget()
-        self.available_symbols_table.setColumnCount(3)  # Added checkbox column
-        self.available_symbols_table.setHorizontalHeaderLabels(["Select", "Symbol", "Position (TRY)"])
-        self.available_symbols_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        self.available_symbols_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.available_symbols_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        self.available_symbols_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        right_layout.addWidget(self.available_symbols_table)
-        
-        # Add add button
-        add_btn = QPushButton("Add Selected")
-        add_btn.clicked.connect(self.add_selected_symbols_to_list)
-        right_layout.addWidget(add_btn)
-        
-        # Add columns to main layout
-        columns_widget = QWidget()
-        columns_layout = QHBoxLayout(columns_widget)
-        columns_layout.addWidget(left_col)
-        columns_layout.addWidget(right_col)
-        
-        symbol_mgmt_layout.addWidget(columns_widget)
-        
-        # Load symbols
-        self.load_symbol_lists()
         
     def toggle_all_current_symbols(self, state):
         """Toggle all checkboxes in current symbols table"""
@@ -4819,7 +5371,7 @@ class ArbitrageMonitor(QMainWindow):
             
             
             # Get current symbols from Redis
-            symbols_data = self.redis.get('maker_Symbol_List')
+            symbols_data = self.redis.get('EXCHANGE_Symbol_List')
             self.current_symbols = json.loads(symbols_data.decode('utf-8')) if symbols_data else []
             
             # Get available symbols from Redis
@@ -4838,9 +5390,9 @@ class ArbitrageMonitor(QMainWindow):
             if pickled_data:
                 arb_table = pickle.loads(pickled_data)
                 for _, row in arb_table.iterrows():
-                    if 'BaseSymbol' in row and 'BTCTURKPositionAmount_TRY' in row:
+                    if 'BaseSymbol' in row and 'EXCHANGEPositionAmount_TRY' in row:
                         symbol = row['BaseSymbol']
-                        position_amounts[symbol] = row['BTCTURKPositionAmount_TRY']
+                        position_amounts[symbol] = row['EXCHANGEPositionAmount_TRY']
             
             # Reset "Select All" checkboxes
             self.select_all_current.blockSignals(True)
@@ -4900,7 +5452,7 @@ class ArbitrageMonitor(QMainWindow):
             # Update the table counts after loading
             self.update_header_counts()
             self.load_maker_arbitrage_thresholds()
-            logging.info("Loading BTCTURK balances now vol2!")
+            logging.info("Loading EXCHANGE balances now vol2!")
             
         except Exception as e:
             logging.error(f"Error loading symbol lists: {e}")
@@ -4930,7 +5482,7 @@ class ArbitrageMonitor(QMainWindow):
                 return
             
             # Get current symbols from Redis
-            symbols_data = self.redis.get('maker_Symbol_List')
+            symbols_data = self.redis.get('EXCHANGE_Symbol_List')
             self.current_symbols = json.loads(symbols_data.decode('utf-8')) if symbols_data else []
             
             # Add new symbols
@@ -4947,7 +5499,7 @@ class ArbitrageMonitor(QMainWindow):
 
             
             # Save back to Redis
-            self.redis.set('maker_Symbol_List', json.dumps(self.current_symbols))
+            self.redis.set('EXCHANGE_Symbol_List', json.dumps(self.current_symbols))
             
             # Reset and rebuild arbitrage thresholds with all current symbols
             self.reset_and_rebuild_thresholds()
@@ -5005,7 +5557,10 @@ class ArbitrageMonitor(QMainWindow):
                         'OpenAggression': 1.0002,
                         'CloseAggression': 0.9998,
                         'MinBuyOrderAmount_TRY': 1000,
+                        'BuyOrderAmount_TRY': 1000,
+                        'MaxBuyOrderAmount_TRY': 100000,
                         'MinSellOrderAmount_TRY': 1000,
+                        'MaxSellOrderAmount_TRY': 100000,
                         'MaxPositionAmount_TRY': 100000,
                         'MoveThreshold': 15
                     })
@@ -5064,7 +5619,7 @@ class ArbitrageMonitor(QMainWindow):
                 return
             
             # Get current symbol list from Redis
-            symbols_data = self.redis.get('maker_Symbol_List')
+            symbols_data = self.redis.get('EXCHANGE_Symbol_List')
             if not symbols_data:
                 QMessageBox.warning(self, "Warning", "No symbols found in Redis")
                 return
@@ -5075,7 +5630,7 @@ class ArbitrageMonitor(QMainWindow):
             updated_symbols = [s for s in current_symbols if s not in selected_symbols]
             
             # Save updated list back to Redis
-            self.redis.set('maker_Symbol_List', json.dumps(updated_symbols))
+            self.redis.set('EXCHANGE_Symbol_List', json.dumps(updated_symbols))
             
             # Publish update notification
             self.redis.publish('arbit_commands', b'update_symbols')
@@ -5220,6 +5775,206 @@ class ArbitrageMonitor(QMainWindow):
         except Exception as e:
             logging.error(f"Error checking system status: {e}")
 
+    def update_health_status(self):
+        """Update health status lights from Redis every 2 seconds"""
+        try:
+            # Read Common_Data_Health from Redis (only updated by script1)
+            # Format: [CS_data, EXCHANGE_data] where 1=healthy, 0=unhealthy
+            data_health_data = self.redis.get('Common_Data_Health')
+            if data_health_data:
+                try:
+                    data_health = json.loads(data_health_data.decode('utf-8'))
+                    cs_data_healthy = data_health[0] == 1 if len(data_health) > 0 else False
+                    EXCHANGE_data_healthy = data_health[1] == 1 if len(data_health) > 1 else False
+                    
+                    # Update CS Binance Data light (Yellow/Red)
+                    if cs_data_healthy:
+                        self.cs_data_light.setStyleSheet("background-color: yellow; border-radius: 7px;")
+                    else:
+                        self.cs_data_light.setStyleSheet("background-color: red; border-radius: 7px;")
+                    
+                    # Update EXCHANGE Data light (Yellow/Red)
+                    if EXCHANGE_data_healthy:
+                        self.EXCHANGE_data_light.setStyleSheet("background-color: yellow; border-radius: 7px;")
+                    else:
+                        self.EXCHANGE_data_light.setStyleSheet("background-color: red; border-radius: 7px;")
+                except Exception as e:
+                    logging.error(f"Error parsing Common_Data_Health: {e}")
+            else:
+                # No data available - set to gray
+                self.cs_data_light.setStyleSheet("background-color: gray; border-radius: 7px;")
+                self.EXCHANGE_data_light.setStyleSheet("background-color: gray; border-radius: 7px;")
+            
+            # Read order health from all scripts and aggregate
+            # For EXCHANGE Order: check if any script has EXCHANGE send/listen sockets healthy
+            # For CS Binance Order: check if any script has CS order socket healthy
+            EXCHANGE_order_healthy = False
+            cs_order_healthy = False
+            
+            for script_id in range(1, 9):  # Scripts 1-8
+                order_health_key = f"Script{script_id}_Order_Health"
+                order_health_data = self.redis.get(order_health_key)
+                if order_health_data:
+                    try:
+                        order_health = json.loads(order_health_data.decode('utf-8'))
+                        # Format: [CS_order_socket, EXCHANGE_send_order_socket, EXCHANGE_listen_socket]
+                        if len(order_health) >= 3:
+                            # CS Order Socket (index 0)
+                            if order_health[0] == 1:
+                                cs_order_healthy = True
+                            # EXCHANGE Send Order Socket (index 1) OR EXCHANGE Listen Socket (index 2)
+                            if order_health[1] == 1 or order_health[2] == 1:
+                                EXCHANGE_order_healthy = True
+                    except Exception as e:
+                        logging.error(f"Error parsing {order_health_key}: {e}")
+            
+            # Update CS Binance Order light (Yellow/Red)
+            if cs_order_healthy:
+                self.cs_order_light.setStyleSheet("background-color: yellow; border-radius: 7px;")
+            else:
+                self.cs_order_light.setStyleSheet("background-color: red; border-radius: 7px;")
+            
+            # Update EXCHANGE Order light (Yellow/Red)
+            if EXCHANGE_order_healthy:
+                self.EXCHANGE_order_light.setStyleSheet("background-color: yellow; border-radius: 7px;")
+            else:
+                self.EXCHANGE_order_light.setStyleSheet("background-color: red; border-radius: 7px;")
+                
+        except Exception as e:
+            logging.error(f"Error updating health status: {e}")
+
+    def show_health_details(self):
+        """Show detailed health status window with all scripts"""
+        try:
+            # Create health details window
+            health_window = QMainWindow(self)
+            health_window.setWindowTitle("Health Status Details")
+            health_window.setGeometry(100, 100, 800, 600)
+            
+            # Create central widget and layout
+            central_widget = QWidget()
+            health_window.setCentralWidget(central_widget)
+            layout = QVBoxLayout(central_widget)
+            
+            # Create table for health status
+            health_table = QTableWidget()
+            health_table.setColumnCount(6)
+            health_table.setHorizontalHeaderLabels([
+                "Component", "BINANCE Data", "EXCHANGE Data", 
+                "CS Order Socket", "EXCHANGE Send Order", "EXCHANGE Listen Socket"
+            ])
+            health_table.horizontalHeader().setStretchLastSection(True)
+            
+            # Read and display data health (from Common_Data_Health)
+            data_health_data = self.redis.get('Common_Data_Health')
+            data_health_row = 0
+            if data_health_data:
+                try:
+                    data_health = json.loads(data_health_data.decode('utf-8'))
+                    health_table.insertRow(data_health_row)
+                    health_table.setItem(data_health_row, 0, QTableWidgetItem("Common Data Health"))
+                    health_table.setItem(data_health_row, 1, QTableWidgetItem("✓" if data_health[0] == 1 else "✗"))
+                    health_table.setItem(data_health_row, 2, QTableWidgetItem("✓" if data_health[1] == 1 else "✗"))
+                    health_table.setItem(data_health_row, 3, QTableWidgetItem("N/A"))
+                    health_table.setItem(data_health_row, 4, QTableWidgetItem("N/A"))
+                    health_table.setItem(data_health_row, 5, QTableWidgetItem("N/A"))
+                    data_health_row += 1
+                except Exception as e:
+                    logging.error(f"Error parsing Common_Data_Health: {e}")
+            
+            # Read and display order health from all scripts
+            for script_id in range(1, 9):
+                order_health_key = f"Script{script_id}_Order_Health"
+                order_health_data = self.redis.get(order_health_key)
+                if order_health_data:
+                    try:
+                        order_health = json.loads(order_health_data.decode('utf-8'))
+                        health_table.insertRow(data_health_row)
+                        health_table.setItem(data_health_row, 0, QTableWidgetItem(f"Script {script_id} Order Health"))
+                        health_table.setItem(data_health_row, 1, QTableWidgetItem("N/A"))
+                        health_table.setItem(data_health_row, 2, QTableWidgetItem("N/A"))
+                        if len(order_health) >= 3:
+                            health_table.setItem(data_health_row, 3, QTableWidgetItem("✓" if order_health[0] == 1 else "✗"))
+                            health_table.setItem(data_health_row, 4, QTableWidgetItem("✓" if order_health[1] == 1 else "✗"))
+                            health_table.setItem(data_health_row, 5, QTableWidgetItem("✓" if order_health[2] == 1 else "✗"))
+                        else:
+                            health_table.setItem(data_health_row, 3, QTableWidgetItem("N/A"))
+                            health_table.setItem(data_health_row, 4, QTableWidgetItem("N/A"))
+                            health_table.setItem(data_health_row, 5, QTableWidgetItem("N/A"))
+                        data_health_row += 1
+                    except Exception as e:
+                        logging.error(f"Error parsing {order_health_key}: {e}")
+            
+            # Resize columns to content
+            health_table.resizeColumnsToContents()
+            
+            # Add table to layout
+            layout.addWidget(health_table)
+            
+            # Add refresh button
+            refresh_btn = QPushButton("Refresh")
+            refresh_btn.clicked.connect(lambda: self.refresh_health_details(health_table))
+            layout.addWidget(refresh_btn)
+            
+            # Show window
+            health_window.show()
+            
+        except Exception as e:
+            logging.error(f"Error showing health details: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to show health details: {e}")
+
+    def refresh_health_details(self, health_table):
+        """Refresh the health details table"""
+        try:
+            # Clear table
+            health_table.setRowCount(0)
+            
+            # Read and display data health (from Common_Data_Health)
+            data_health_data = self.redis.get('Common_Data_Health')
+            data_health_row = 0
+            if data_health_data:
+                try:
+                    data_health = json.loads(data_health_data.decode('utf-8'))
+                    health_table.insertRow(data_health_row)
+                    health_table.setItem(data_health_row, 0, QTableWidgetItem("Common Data Health"))
+                    health_table.setItem(data_health_row, 1, QTableWidgetItem("✓" if data_health[0] == 1 else "✗"))
+                    health_table.setItem(data_health_row, 2, QTableWidgetItem("✓" if data_health[1] == 1 else "✗"))
+                    health_table.setItem(data_health_row, 3, QTableWidgetItem("N/A"))
+                    health_table.setItem(data_health_row, 4, QTableWidgetItem("N/A"))
+                    health_table.setItem(data_health_row, 5, QTableWidgetItem("N/A"))
+                    data_health_row += 1
+                except Exception as e:
+                    logging.error(f"Error parsing Common_Data_Health: {e}")
+            
+            # Read and display order health from all scripts
+            for script_id in range(1, 9):
+                order_health_key = f"Script{script_id}_Order_Health"
+                order_health_data = self.redis.get(order_health_key)
+                if order_health_data:
+                    try:
+                        order_health = json.loads(order_health_data.decode('utf-8'))
+                        health_table.insertRow(data_health_row)
+                        health_table.setItem(data_health_row, 0, QTableWidgetItem(f"Script {script_id} Order Health"))
+                        health_table.setItem(data_health_row, 1, QTableWidgetItem("N/A"))
+                        health_table.setItem(data_health_row, 2, QTableWidgetItem("N/A"))
+                        if len(order_health) >= 3:
+                            health_table.setItem(data_health_row, 3, QTableWidgetItem("✓" if order_health[0] == 1 else "✗"))
+                            health_table.setItem(data_health_row, 4, QTableWidgetItem("✓" if order_health[1] == 1 else "✗"))
+                            health_table.setItem(data_health_row, 5, QTableWidgetItem("✓" if order_health[2] == 1 else "✗"))
+                        else:
+                            health_table.setItem(data_health_row, 3, QTableWidgetItem("N/A"))
+                            health_table.setItem(data_health_row, 4, QTableWidgetItem("N/A"))
+                            health_table.setItem(data_health_row, 5, QTableWidgetItem("N/A"))
+                        data_health_row += 1
+                    except Exception as e:
+                        logging.error(f"Error parsing {order_health_key}: {e}")
+            
+            # Resize columns to content
+            health_table.resizeColumnsToContents()
+            
+        except Exception as e:
+            logging.error(f"Error refreshing health details: {e}")
+
     def toggle_history_column(self, table, column_index, show):
         """Toggle visibility of a column in a history table with special handling"""
         logging.info(f"Toggling column {column_index} visibility to {show} in history table")
@@ -5275,8 +6030,8 @@ class ArbitrageMonitor(QMainWindow):
         logging.info(f"Column {column_index} hidden status after toggle: {is_hidden}, width: {current_width}")
         
         # Store the current visibility state
-        if table == self.btcturk_trade_table:
-            self.btcturk_column_state = [table.isColumnHidden(i) for i in range(table.columnCount())]
+        if table == self.EXCHANGE_trade_table:
+            self.EXCHANGE_column_state = [table.isColumnHidden(i) for i in range(table.columnCount())]
         elif table == self.binance_trade_table:
             self.binance_column_state = [table.isColumnHidden(i) for i in range(table.columnCount())]
         
@@ -5309,7 +6064,7 @@ class ArbitrageMonitor(QMainWindow):
         self.symbol_search_input.blockSignals(False)
 
     def fetch_common_symbols(self):
-        """Fetch common symbols between Binance and BTCTURK"""
+        """Fetch common symbols between Binance and EXCHANGE"""
         try:
             # Initialize exchanges
             binance = ccxt.binance({
@@ -5319,7 +6074,7 @@ class ArbitrageMonitor(QMainWindow):
                 }
             })
             
-            btcturk = ccxt.btcturk({
+            EXCHANGE = ccxt.EXCHANGE({
                 'enableRateLimit': True
             })
 
@@ -5330,11 +6085,11 @@ class ArbitrageMonitor(QMainWindow):
             self.right_header_status.setText("Binance symbols loaded")
             QApplication.processEvents()
 
-            # Step 2: Load BTCTURK markets
-            self.right_header_status.setText("Loading BTCTURK symbols...")
+            # Step 2: Load EXCHANGE markets
+            self.right_header_status.setText("Loading EXCHANGE symbols...")
             QApplication.processEvents()
-            btcturk_markets = btcturk.load_markets()
-            self.right_header_status.setText("BTCTURK symbols loaded")
+            EXCHANGE_markets = EXCHANGE.load_markets()
+            self.right_header_status.setText("EXCHANGE symbols loaded")
             QApplication.processEvents()
 
             # Step 3: Find common symbols
@@ -5346,17 +6101,17 @@ class ArbitrageMonitor(QMainWindow):
                                     if v['active'] and v['contract']}
             bases_binance = [v['base'] for v in active_binance_markets.values()]
 
-            active_btcturk_markets = {k: v for k, v in btcturk_markets.items() 
+            active_EXCHANGE_markets = {k: v for k, v in EXCHANGE_markets.items() 
                                     if v['active']}
-            bases_btcturk = [v['base'] for v in active_btcturk_markets.values()]
+            bases_EXCHANGE = [v['base'] for v in active_EXCHANGE_markets.values()]
 
             # Find common bases
-            common_bases = set(bases_binance).intersection(set(bases_btcturk))
+            common_bases = set(bases_binance).intersection(set(bases_EXCHANGE))
             
             # Step 4: Get market data using bulk fetch
             self.right_header_status.setText("Fetching market data in bulk...")
             QApplication.processEvents()
-            market_data = self.fetch_market_data_bulk(btcturk)
+            market_data = self.fetch_market_data_bulk(EXCHANGE)
             self.right_header_status.setText("Market data fetched")
             QApplication.processEvents()
 
@@ -5468,7 +6223,12 @@ class ArbitrageMonitor(QMainWindow):
             'CloseMarginWindow': 5,
             'CloseAggression': 6,
             'MinBuyOrderAmount_TRY': self.min_buy_order_column_index,
+            'BuyOrderAmount_TRY': self.buy_order_amount_column_index,
+            'MaxBuyOrderAmount_TRY': self.max_buy_order_column_index,
             'MinSellOrderAmount_TRY': self.min_sell_order_column_index,
+            'MaxSellOrderAmount_TRY': self.max_sell_order_column_index,
+            'MinSellRatio': self.min_sell_ratio_column_index,
+            'MaxSellRatio': self.max_sell_ratio_column_index,
             'MaxPositionAmount_TRY': self.max_position_column_index,
             'CurrentPositionAmount_TRY': self.current_position_TRY_index,
             'MoveThreshold': self.move_threshold_column_index,
@@ -5496,8 +6256,12 @@ class ArbitrageMonitor(QMainWindow):
                     if item:
                         item.setData(Qt.ItemDataRole.EditRole, bool(new_value))
                 else:
-                    # Format numeric values (convert to basis points if needed)
-                    if isinstance(new_value, float) and new_value < 1:
+                    # Format numeric values (convert to basis points if needed, but NOT for sell ratios and aggressions)
+                    # Sell ratios and aggressions should always be displayed as decimals
+                    if field_name in ['MinSellRatio', 'MaxSellRatio', 'OpenAggression', 'CloseAggression']:
+                        # Always display these as decimal values without multiplication
+                        formatted_value = str(new_value)
+                    elif isinstance(new_value, float) and new_value < 1:
                         formatted_value = str(int(round(new_value * 10000, 1)))
                     else:
                         formatted_value = str(new_value)
@@ -5750,7 +6514,7 @@ class ArbitrageMonitor(QMainWindow):
                             formatted_value = str(formatted_value) if formatted_value is not None else ""
                             item = QTableWidgetItem(formatted_value)
                         # Handle columns that might be strings but need numeric formatting
-                        elif col in ['BTCTURKPositionAmount_coin', 'BinancePositionAmount_coin', 'CapacityGap_TRY']:
+                        elif col in ['EXCHANGEPositionAmount_coin', 'BinancePositionAmount_coin', 'CapacityGap_TRY']:
                             try:
                                 # Try to convert to float for numeric operations
                                 if isinstance(value, str):
@@ -5767,10 +6531,10 @@ class ArbitrageMonitor(QMainWindow):
                         elif col in ['Amount', 'Price', 'TriggerMargin', 'OpenMargin', 'CloseMargin', 
                                    'MaxPositionAmount_TRY', 
                                    'BinancePositionAmount_usdt', 'BinancePositionAmount_TRY',
-                                   'BTCTURKPositionAmount_usdt', 'BTCTURKPositionAmount_TRY',
+                                   'EXCHANGEPositionAmount_usdt', 'EXCHANGEPositionAmount_TRY',
                                    'OpenTriggerMargin', 'CloseTriggerMargin', 'OpenStopMargin', 'CloseStopMargin',
                                    'OpenAggression', 'CloseAggression', 'OpenMarginWindow', 'CloseMarginWindow',
-                                   'BinanceTimeDiff']:  # CRITICAL: BinanceTimeDiff must be numeric for proper sorting
+                                   'Binance_TimeDiff', 'binance_absolute_time_diff']:  # CRITICAL: Must be numeric for proper sorting
                             try:
                                 # Handle None/NaN values - use a large number for sorting so they appear last
                                 if value is None or (isinstance(value, float) and (pd.isna(value) or np.isnan(value))):
@@ -6191,6 +6955,16 @@ def main():
     
     # Set application style
     app.setStyle('Fusion')
+    
+    # Delete maker_arbitrage_table from Redis before starting GUI
+    # This ensures a fresh start with the correct schema (handles schema changes)
+    try:
+        redis_client = redis.Redis(host='localhost', port=6379)
+        redis_client.delete('maker_arbitrage_table')
+        logging.info("Deleted maker_arbitrage_table from Redis before starting GUI")
+    except Exception as e:
+        logging.warning(f"Could not delete maker_arbitrage_table from Redis: {e}")
+        # Continue anyway - the GUI will handle schema mismatches gracefully
     
     # Create and show the main window
     window = ArbitrageMonitor()

@@ -94,7 +94,7 @@ from arbit_config_maker_BTR import (
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 # Script configuration for distributed processing
-SCRIPT_ID = 1  # Script 1 of 10
+SCRIPT_ID = 7  # Script 7 of 10
 
 # CPU affinity configuration (Multi-Core System)
 # IMPORTANT: CPU core allocation:

@@ -21,11 +21,11 @@ if os.path.exists("binance_cs_shared_memory_reader_optimized.pyx"):
         language="c"
     ))
 
-# Binance TR shared memory reader
-if os.path.exists("binance_tr_shared_memory_reader_optimized.pyx"):
+# EXCHANGE shared memory reader
+if os.path.exists("EXCHANGE_shared_memory_reader_optimized.pyx"):
     extensions.append(Extension(
-        "binance_tr_shared_memory_reader_optimized",
-        ["binance_tr_shared_memory_reader_optimized.pyx"],
+        "EXCHANGE_shared_memory_reader_optimized",
+        ["EXCHANGE_shared_memory_reader_optimized.pyx"],
         include_dirs=[np.get_include()],
         extra_compile_args=["-O3", "-ffast-math", "-march=native"],  # Aggressive optimizations + CPU-specific
         language="c"

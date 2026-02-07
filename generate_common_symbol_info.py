@@ -198,7 +198,6 @@ def find_common_symbols(binance_tr_symbols: List[Dict],
     """
     # Define exceptional symbol mappings: TR_base_symbol -> Futures_code
     exceptional_mappings = {
-        "LUNA": "LUNA2",      # LUNA_TRY -> LUNA2USDT
         "PEPE": "1000PEPE",   # PEPE_TRY -> 1000PEPEUSDT
         "BONK": "1000BONK",   # BONK_TRY -> 1000BONKUSDT
         "SHIB": "1000SHIB",   # SHIB_TRY -> 1000SHIBUSDT

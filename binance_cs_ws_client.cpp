@@ -25,6 +25,8 @@
 #include <sys/wait.h>
 #include <cstdlib>
 #include <ctime>
+#include <algorithm>
+#include <pthread.h>
 #include "binance_cs_orderbook_shared_memory.h"
 
 // HFT OPTIMIZATION: RDTSC for ultra-fast timestamps (CPU cycle counter)
@@ -143,6 +145,138 @@ inline void log_fast(const char* msg) {
 
 // Shared memory manager
 static BinanceCSOrderbookSharedMemoryManager* g_shm_manager = nullptr;
+
+// USDTTRY rate cache (average of ask and bid from Binance Global)
+static std::atomic<double> g_usdttry_rate(1.0);  // Default to 1.0 if not fetched yet
+static std::atomic<int64_t> g_usdttry_last_update(0);  // Timestamp of last update
+
+// Function to fetch USDTTRY from Binance Global REST API
+// API: GET https://api.binance.com/api/v3/ticker/bookTicker?symbol=USDTTRY
+// Uses curl for simplicity and reliability (handles HTTPS automatically)
+bool fetch_usdttry_from_binance_global(double& usdttry_rate) {
+    // Use curl to fetch the JSON response (handles HTTPS automatically)
+    FILE* curl_pipe = popen("curl -s --max-time 5 'https://api.binance.com/api/v3/ticker/bookTicker?symbol=USDTTRY'", "r");
+    if (!curl_pipe) {
+        return false;
+    }
+    
+    // Read response
+    char response[1024];
+    size_t total_read = 0;
+    while (total_read < sizeof(response) - 1) {
+        size_t n = fread(response + total_read, 1, sizeof(response) - total_read - 1, curl_pipe);
+        if (n == 0) {
+            break;
+        }
+        total_read += n;
+    }
+    response[total_read] = '\0';
+    
+    int curl_status = pclose(curl_pipe);
+    if (curl_status != 0 || total_read == 0) {
+        return false;
+    }
+    
+    // Parse JSON response: {"symbol":"USDTTRY","bidPrice":"34.50000000","bidQty":"1000.00000000","askPrice":"34.51000000","askQty":"1000.00000000"}
+    // Find bidPrice and askPrice
+    const char* bid_price_start = strstr(response, "\"bidPrice\"");
+    const char* ask_price_start = strstr(response, "\"askPrice\"");
+    
+    if (!bid_price_start || !ask_price_start) {
+        return false;
+    }
+    
+    // Extract bidPrice value
+    bid_price_start = strchr(bid_price_start, ':');
+    if (!bid_price_start) return false;
+    bid_price_start++;  // Skip ':'
+    while (*bid_price_start == ' ' || *bid_price_start == '"') bid_price_start++;
+    
+    const char* bid_price_end = bid_price_start;
+    while (*bid_price_end && *bid_price_end != '"' && *bid_price_end != ',' && *bid_price_end != '}') {
+        bid_price_end++;
+    }
+    
+    // Extract askPrice value
+    ask_price_start = strchr(ask_price_start, ':');
+    if (!ask_price_start) return false;
+    ask_price_start++;  // Skip ':'
+    while (*ask_price_start == ' ' || *ask_price_start == '"') ask_price_start++;
+    
+    const char* ask_price_end = ask_price_start;
+    while (*ask_price_end && *ask_price_end != '"' && *ask_price_end != ',' && *ask_price_end != '}') {
+        ask_price_end++;
+    }
+    
+    // Parse doubles
+    std::string bid_str(bid_price_start, bid_price_end - bid_price_start);
+    std::string ask_str(ask_price_start, ask_price_end - ask_price_start);
+    
+    try {
+        double bid_price = std::stod(bid_str);
+        double ask_price = std::stod(ask_str);
+        
+        // Calculate average
+        usdttry_rate = (bid_price + ask_price) / 2.0;
+        
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+// Thread function to periodically update USDTTRY rate (every 60 seconds)
+void* usdttry_update_thread(void* arg) {
+    (void)arg;  // Suppress unused parameter warning
+    
+    // Do immediate first fetch (don't wait - we need the rate ASAP)
+        double usdttry_rate = 1.0;
+        if (fetch_usdttry_from_binance_global(usdttry_rate)) {
+            g_usdttry_rate.store(usdttry_rate);
+            int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            g_usdttry_last_update.store(now);
+            
+            char log_msg[256];
+            snprintf(log_msg, sizeof(log_msg), "[Host-%d Core-%d] [USDTTRY] Initial rate fetched: %.6f (avg of bid/ask) - all prices will be converted to TRY", 
+                    g_host_id + 1, g_core_id, usdttry_rate);
+            log_fast(log_msg);
+        } else {
+            char warn_msg[256];
+            snprintf(warn_msg, sizeof(warn_msg), "[Host-%d Core-%d] [USDTTRY] WARNING: Initial fetch failed, using default rate 1.0. Prices will NOT be converted to TRY until fetch succeeds!", 
+                    g_host_id + 1, g_core_id);
+            log_fast(warn_msg);
+        }
+    
+    while (g_running) {
+        // Sleep for 60 seconds before next fetch
+        for (int i = 0; i < 60 && g_running; i++) {
+            sleep(1);
+        }
+        
+        if (!g_running) break;
+        
+        double usdttry_rate = 1.0;
+        if (fetch_usdttry_from_binance_global(usdttry_rate)) {
+            g_usdttry_rate.store(usdttry_rate);
+            int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            g_usdttry_last_update.store(now);
+            
+            char log_msg[256];
+            snprintf(log_msg, sizeof(log_msg), "[Host-%d Core-%d] [USDTTRY] Rate updated: %.6f (avg of bid/ask)", 
+                    g_host_id + 1, g_core_id, usdttry_rate);
+            log_fast(log_msg);
+        } else {
+            char warn_msg[256];
+            snprintf(warn_msg, sizeof(warn_msg), "[Host-%d Core-%d] [USDTTRY] WARNING: Failed to fetch, using cached rate: %.6f", 
+                    g_host_id + 1, g_core_id, g_usdttry_rate.load());
+            log_fast(warn_msg);
+        }
+    }
+    
+    return nullptr;
+}
 
 // Load instruments and symbol mapping from common_symbol_info.json
 bool load_instruments_from_json(const std::string& filename,
@@ -296,8 +430,23 @@ void log_core_stats(const std::map<uint32_t, SymbolData>& symbol_data,
 // Full example: [6, 123456, "12345678-1", "12345678-2", 1580143531008103451, 1580143530031129024, [[0, "7098.25", "10", 1], [1, "7099.25", "20", 1]]]
 void process_tob_message(const char* data, size_t len) {
     // Find TOB message type (6) - simple check for [6,
+    // Also handle continuation frames that might start with the data directly
     const char* tob_marker = (const char*)memmem(data, len, "[6,", 3);
-    if (!tob_marker) return;
+    if (!tob_marker) {
+        // Check if this might be a continuation frame or different message format
+        // Some messages might be batched: [[6,...],[6,...]]
+        if (len > 0 && data[0] == '[' && memmem(data, len, "6,", 2)) {
+            // Might be a batched message, try to find [6, in the array
+            tob_marker = (const char*)memmem(data, len, "6,", 2);
+            if (tob_marker && tob_marker > data && *(tob_marker - 1) == '[') {
+                // Found [6, in batched format
+            } else {
+                return; // Not a TOB message
+            }
+        } else {
+            return; // Not a TOB message
+        }
+    }
     
     // Parse instrument_id (second element)
     const char* inst_start = tob_marker + 3;
@@ -552,15 +701,42 @@ void process_tob_message(const char* data, size_t len) {
         g_message_count++;
         
         // Update shared memory if available (only prices, no quantities)
+        // REDUNDANCY: All cores (Host-1 and Host-2) write to the SAME shared memory location
+        // for the same symbol. The symbol-to-index mapping ensures that "GRTUSDT" from
+        // Host-1 Core-10 and "GRTUSDT" from Host-2 Core-12 both write to entries[same_index].
+        // This provides redundancy - if one host fails, the other continues updating the data.
         if (g_shm_manager && bid_price > 0.0 && ask_price > 0.0) {
             std::string symbol = g_instrument_to_symbol.count(instrument_id) ? 
                                  g_instrument_to_symbol[instrument_id] : "";
             if (!symbol.empty()) {
                 int64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch()).count();
-                // Write only prices (0.0 for quantities) - safe overwriting for redundancy
-                g_shm_manager->update_orderbook(instrument_id, symbol, ask_price, 0.0,
-                                                bid_price, 0.0, timestamp);
+                
+                // CRITICAL: Convert ALL Binance CS prices from USDT to TRY
+                // This applies to EVERY symbol, regardless of which core processes it (first half, second half, etc.)
+                // All prices MUST be converted to TRY for comparison with EXCHANGE prices
+                double usdttry_rate = g_usdttry_rate.load();
+                
+                // Log USDTTRY rate periodically (once per 1000 updates to avoid spam)
+                static uint64_t conversion_log_count = 0;
+                if (conversion_log_count++ % 1000 == 0) {
+                    char rate_log[256];
+                    snprintf(rate_log, sizeof(rate_log), "[Host-%d Core-%d] USDTTRY rate: %.6f (converting %s: USDT %.8f -> TRY %.8f)", 
+                            g_host_id + 1, g_core_id, usdttry_rate, symbol.c_str(), ask_price, ask_price * usdttry_rate);
+                    log_fast(rate_log);
+                }
+                
+                // Multiply both ask and bid prices by USDTTRY rate to convert from USDT to TRY
+                // This conversion happens for ALL symbols, no exceptions
+                double ask_price_try = ask_price * usdttry_rate;
+                double bid_price_try = bid_price * usdttry_rate;
+                
+                // Write prices in TRY (0.0 for quantities) - safe overwriting for redundancy
+                // Multiple cores can safely overwrite the same location - last write wins
+                // Note: Prices are now in TRY, matching EXCHANGE prices for arbitrage comparison
+                // ALL symbols written to shared memory are in TRY, regardless of core assignment
+                g_shm_manager->update_orderbook(instrument_id, symbol, ask_price_try, 0.0,
+                                                bid_price_try, 0.0, timestamp);
             }
         }
     }
@@ -857,6 +1033,15 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
     log_fast(init_msg);
     log_fast("Press Ctrl+C to stop gracefully");
     
+    // Start USDTTRY update thread (fetches from Binance Global every 60 seconds)
+    pthread_t usdttry_thread;
+    if (pthread_create(&usdttry_thread, nullptr, usdttry_update_thread, nullptr) == 0) {
+        log_fast("USDTTRY update thread started (fetches from Binance Global every 60 seconds)");
+        pthread_detach(usdttry_thread);  // Detach thread so it cleans up automatically
+    } else {
+        log_fast("WARNING: Failed to start USDTTRY update thread");
+    }
+    
     // Load instruments
     std::vector<uint32_t> all_instruments;
     if (!load_instruments_from_json(instruments_file, all_instruments, g_instrument_to_symbol)) {
@@ -972,11 +1157,15 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
         }
     }
     
+    // REDUNDANCY: All cores (from both Host-1 and Host-2) use the SAME shared memory
+    // (/binance_cs_orderbook_shm) and the SAME symbol-to-index mapping. This ensures that
+    // when Host-1 Core-10 receives "GRTUSDT" and Host-2 Core-12 receives "GRTUSDT",
+    // both write to the same shared memory location (entries[same_index]), providing redundancy.
     if (!symbol_to_index.empty()) {
         g_shm_manager = new BinanceCSOrderbookSharedMemoryManager(SHM_NAME_BINANCE_CS);
         if (g_shm_manager->initialize(symbol_to_index)) {
             char log_msg[256];
-            snprintf(log_msg, sizeof(log_msg), "Shared memory initialized with %zu symbol(s)", symbol_to_index.size());
+            snprintf(log_msg, sizeof(log_msg), "Shared memory initialized with %zu symbol(s) [REDUNDANCY: All hosts write to same locations]", symbol_to_index.size());
             log_fast(log_msg);
         } else {
             log_fast("WARNING: Failed to initialize shared memory, continuing without it");
@@ -987,141 +1176,156 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
         log_fast("WARNING: No symbol-to-index mapping found, shared memory disabled");
     }
     
-    // CS WebSocket uses plain WebSocket (ws://), not SSL
-    // Create socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) {
-        log_fast("ERROR: Failed to create socket");
-        return 1;
-    }
-    
-    // Set TCP options for low latency
-    int flag = 1;
-    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
-    int quickack = 1;
-    setsockopt(sock, IPPROTO_TCP, TCP_QUICKACK, &quickack, sizeof(quickack));
-    
-    // Connect
-    struct sockaddr_in server_addr;
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(port);
-    
-    if (inet_pton(AF_INET, host.c_str(), &server_addr.sin_addr) <= 0) {
-        struct hostent* he = gethostbyname(host.c_str());
-        if (!he) {
-            char log_msg[512];
-            snprintf(log_msg, sizeof(log_msg), "[Host-%d Core-%d] ERROR: Failed to resolve host: %s - %s (errno=%d)", 
-                    host_id + 1, core_id, host.c_str(), hstrerror(h_errno), h_errno);
-            log_fast(log_msg);
-            close(sock);
-            return 1;
+    // Helper function to establish WebSocket connection
+    auto connect_websocket = [&](int& sock_fd) -> bool {
+        // Create socket
+        sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sock_fd < 0) {
+            enable_logging = true;
+            log_fast("ERROR: Failed to create socket");
+            return false;
         }
-        memcpy(&server_addr.sin_addr, he->h_addr_list[0], he->h_length);
-    }
-    
-    char conn_msg[256];
-    snprintf(conn_msg, sizeof(conn_msg), "Connecting to Host-%d (%s:%d)...", host_id + 1, host.c_str(), port); // host_id+1 to show Host-1, Host-2
-    log_fast(conn_msg);
-    
-    if (connect(sock, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
-        char log_msg[512];
-        snprintf(log_msg, sizeof(log_msg), "[Host-%d Core-%d] ERROR: Failed to connect to %s:%d - %s (errno=%d)", 
-                host_id + 1, core_id, host.c_str(), port, strerror(errno), errno);
-        log_fast(log_msg);
-        close(sock);
-        return 1;
-    }
-    
-    char tcp_msg[256];
-    snprintf(tcp_msg, sizeof(tcp_msg), "TCP connected to %s:%d", host.c_str(), port);
-    log_fast(tcp_msg);
-    
-    // CS WebSocket uses standard WebSocket protocol (plain, not SSL)
-    // Send WebSocket handshake to /api/v6 endpoint
-    std::stringstream handshake_ss;
-    handshake_ss << "GET /api/v6 HTTP/1.1\r\n"
-                 << "Host: " << host << ":" << port << "\r\n"
-                 << "Upgrade: websocket\r\n"
-                 << "Connection: Upgrade\r\n"
-                 << "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n"
-                 << "Sec-WebSocket-Version: 13\r\n"
-                 << "\r\n";
-    
-    std::string handshake = handshake_ss.str();
-    ssize_t sent = send(sock, handshake.c_str(), handshake.length(), 0);
-    if (sent < 0) {
-        char err_msg[512];
-        snprintf(err_msg, sizeof(err_msg), "[Host-%d Core-%d] ERROR: Failed to send WebSocket handshake: %s (errno=%d)", 
-                host_id + 1, core_id, strerror(errno), errno);
-        log_fast(err_msg);
-        close(sock);
-        return 1;
-    } else if ((size_t)sent < handshake.length()) {
-        char warn_msg[512];
-        snprintf(warn_msg, sizeof(warn_msg), "[Host-%d Core-%d] WARNING: Partial handshake send: %zd of %zu bytes", 
-                host_id + 1, core_id, sent, handshake.length());
-        log_fast(warn_msg);
-    }
-    
-    // Read HTTP response
-    char http_buf[4096];
-    int http_len = 0;
-    int total_read = 0;
-    
-    while (total_read < (int)sizeof(http_buf) - 1) {
-        int n = recv(sock, http_buf + total_read, sizeof(http_buf) - total_read - 1, 0);
-        if (n > 0) {
-            total_read += n;
-            http_buf[total_read] = '\0';
-            if (strstr(http_buf, "\r\n\r\n")) {
-                break;
+        
+        // Set TCP options for low latency
+        int flag = 1;
+        setsockopt(sock_fd, IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+        int quickack = 1;
+        setsockopt(sock_fd, IPPROTO_TCP, TCP_QUICKACK, &quickack, sizeof(quickack));
+        
+        // Connect
+        struct sockaddr_in server_addr;
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(port);
+        
+        if (inet_pton(AF_INET, host.c_str(), &server_addr.sin_addr) <= 0) {
+            struct hostent* he = gethostbyname(host.c_str());
+            if (!he) {
+                enable_logging = true;
+                char log_msg[512];
+                snprintf(log_msg, sizeof(log_msg), "[Host-%d Core-%d] ERROR: Failed to resolve host: %s - %s (errno=%d)", 
+                        host_id + 1, core_id, host.c_str(), hstrerror(h_errno), h_errno);
+                log_fast(log_msg);
+                close(sock_fd);
+                return false;
             }
-        } else if (n < 0) {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                usleep(1000);
-                continue;
+            memcpy(&server_addr.sin_addr, he->h_addr_list[0], he->h_length);
+        }
+        
+        enable_logging = true;
+        char conn_msg[256];
+        snprintf(conn_msg, sizeof(conn_msg), "Connecting to Host-%d (%s:%d)...", host_id + 1, host.c_str(), port);
+        log_fast(conn_msg);
+        
+        if (connect(sock_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+            enable_logging = true;
+            char log_msg[512];
+            snprintf(log_msg, sizeof(log_msg), "[Host-%d Core-%d] ERROR: Failed to connect to %s:%d - %s (errno=%d)", 
+                    host_id + 1, core_id, host.c_str(), port, strerror(errno), errno);
+            log_fast(log_msg);
+            close(sock_fd);
+            return false;
+        }
+        
+        enable_logging = true;
+        char tcp_msg[256];
+        snprintf(tcp_msg, sizeof(tcp_msg), "TCP connected to %s:%d", host.c_str(), port);
+        log_fast(tcp_msg);
+        
+        // CS WebSocket uses standard WebSocket protocol (plain, not SSL)
+        // Send WebSocket handshake to /api/v6 endpoint
+        std::stringstream handshake_ss;
+        handshake_ss << "GET /api/v6 HTTP/1.1\r\n"
+                     << "Host: " << host << ":" << port << "\r\n"
+                     << "Upgrade: websocket\r\n"
+                     << "Connection: Upgrade\r\n"
+                     << "Sec-WebSocket-Key: x3JJHMbDL1EzLkh9GBhXDw==\r\n"
+                     << "Sec-WebSocket-Version: 13\r\n"
+                     << "\r\n";
+        
+        std::string handshake = handshake_ss.str();
+        ssize_t sent = send(sock_fd, handshake.c_str(), handshake.length(), 0);
+        if (sent < 0) {
+            enable_logging = true;
+            char err_msg[512];
+            snprintf(err_msg, sizeof(err_msg), "[Host-%d Core-%d] ERROR: Failed to send WebSocket handshake: %s (errno=%d)", 
+                    host_id + 1, core_id, strerror(errno), errno);
+            log_fast(err_msg);
+            close(sock_fd);
+            return false;
+        } else if ((size_t)sent < handshake.length()) {
+            enable_logging = true;
+            char warn_msg[512];
+            snprintf(warn_msg, sizeof(warn_msg), "[Host-%d Core-%d] WARNING: Partial handshake send: %zd of %zu bytes", 
+                    host_id + 1, core_id, sent, handshake.length());
+            log_fast(warn_msg);
+        }
+        
+        // Read HTTP response
+        char http_buf[4096];
+        int http_len = 0;
+        int total_read = 0;
+        
+        while (total_read < (int)sizeof(http_buf) - 1) {
+            int n = recv(sock_fd, http_buf + total_read, sizeof(http_buf) - total_read - 1, 0);
+            if (n > 0) {
+                total_read += n;
+                http_buf[total_read] = '\0';
+                if (strstr(http_buf, "\r\n\r\n")) {
+                    break;
+                }
+            } else if (n < 0) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    usleep(1000);
+                    continue;
+                } else {
+                    break;
+                }
             } else {
                 break;
             }
-        } else {
-            break;
         }
-    }
-    
-    http_len = total_read;
-    // Check for successful WebSocket handshake (101 Switching Protocols)
-    // Response should contain "101" and "upgrade" (case-insensitive check)
-    bool handshake_ok = false;
-    if (http_len > 0) {
-        bool has_101 = (strstr(http_buf, "101") != nullptr);
-        // Check for "upgrade" or "Upgrade" (case-insensitive)
-        bool has_upgrade = (strstr(http_buf, "upgrade") != nullptr) || 
-                           (strstr(http_buf, "Upgrade") != nullptr) ||
-                           (strstr(http_buf, "UPGRADE") != nullptr);
-        handshake_ok = has_101 && has_upgrade;
-    }
-    
-    if (handshake_ok) {
-        log_fast("✓ WebSocket connected!");
-    } else {
-        enable_logging = true;
-        char err_msg[1024];
-        snprintf(err_msg, sizeof(err_msg), "[Host-%d Core-%d] ERROR: WebSocket handshake failed", 
-                host_id + 1, core_id);
-        log_fast(err_msg);
+        
+        http_len = total_read;
+        // Check for successful WebSocket handshake (101 Switching Protocols)
+        bool handshake_ok = false;
         if (http_len > 0) {
-            char http_log[2048];
-            snprintf(http_log, sizeof(http_log), "[Host-%d Core-%d] HTTP Response:\n%.*s", 
-                    host_id + 1, core_id, http_len, http_buf);
-            log_fast(http_log);
-        } else {
-            char no_resp_msg[256];
-            snprintf(no_resp_msg, sizeof(no_resp_msg), "[Host-%d Core-%d] No HTTP response received", 
-                    host_id + 1, core_id);
-            log_fast(no_resp_msg);
+            bool has_101 = (strstr(http_buf, "101") != nullptr);
+            bool has_upgrade = (strstr(http_buf, "upgrade") != nullptr) || 
+                               (strstr(http_buf, "Upgrade") != nullptr) ||
+                               (strstr(http_buf, "UPGRADE") != nullptr);
+            handshake_ok = has_101 && has_upgrade;
         }
-        close(sock);
+        
+        if (handshake_ok) {
+            enable_logging = true;
+            log_fast("✓ WebSocket connected!");
+            return true;
+        } else {
+            enable_logging = true;
+            char err_msg[1024];
+            snprintf(err_msg, sizeof(err_msg), "[Host-%d Core-%d] ERROR: WebSocket handshake failed", 
+                    host_id + 1, core_id);
+            log_fast(err_msg);
+            if (http_len > 0) {
+                char http_log[2048];
+                snprintf(http_log, sizeof(http_log), "[Host-%d Core-%d] HTTP Response:\n%.*s", 
+                        host_id + 1, core_id, http_len, http_buf);
+                log_fast(http_log);
+            } else {
+                char no_resp_msg[256];
+                snprintf(no_resp_msg, sizeof(no_resp_msg), "[Host-%d Core-%d] No HTTP response received", 
+                        host_id + 1, core_id);
+                log_fast(no_resp_msg);
+            }
+            close(sock_fd);
+            return false;
+        }
+    };
+    
+    // Initial connection
+    int sock = -1;
+    if (!connect_websocket(sock)) {
         return 1;
     }
     
@@ -1178,8 +1382,7 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
         }
     };
     
-    // CS protocol: First send login message [13, org, app_name, app_ver, process_id]
-    // Read CS config from instruments file
+    // Read CS config from instruments file (once, reuse for reconnections)
     std::string cs_org = "Quantix";
     std::string cs_app_name = "WSClient";
     std::string cs_app_ver = "1.0.0";
@@ -1228,30 +1431,45 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
     }
     
     std::string process_id = "cpp_client_" + std::to_string(getpid());
-    std::stringstream login_msg;
-    login_msg << "[13,\"" << cs_org << "\",\"" << cs_app_name << "\",\"" << cs_app_ver << "\",\"" << process_id << "\"]";
-    
-    std::string login_str = login_msg.str();
-    char login_log[256];
-    snprintf(login_log, sizeof(login_log), "Sending login: %s", login_str.c_str());
-    log_fast(login_log);
-    send_ws_frame(login_str);
-    usleep(200000); // Wait 200ms after login (like Python code)
-    
-    // CS protocol: Send individual subscription for each instrument
-    // Format: [11, instrument_id, SUB_OPTIONS]
-    // SUB_OPTIONS: Match Python format exactly - all fields explicitly set
     std::string sub_options = "{\"depthTopic\":false,\"tradesTopic\":false,\"topOfBookTopic\":true,\"indexPriceTopic\":false,\"markPriceTopic\":false,\"fundingRateTopic\":false,\"liquidationsTopic\":false,\"topOfBookCoalescing\":false}";
     
-    char sub_log[256];
-    snprintf(sub_log, sizeof(sub_log), "Subscribing to %zu instrument(s)...", instruments.size());
-    log_fast(sub_log);
-    
-    // Add random initial delay (1-3 seconds) to stagger subscriptions across cores
-    // This helps avoid rate limiting when multiple cores subscribe simultaneously
-    srand(time(NULL) ^ getpid() ^ core_id); // Seed with time, PID, and core_id for different random sequences per core
-    int random_initial_delay_us = 1000000 + (rand() % 2000001); // 1-3 seconds
-    usleep(random_initial_delay_us);
+    // Helper function to perform login and subscription
+    auto login_and_subscribe = [&](int /* sock_fd */, auto& send_ws_frame_func) -> bool {
+        // CS protocol: First send login message [13, org, app_name, app_ver, process_id]
+        std::stringstream login_msg;
+        login_msg << "[13,\"" << cs_org << "\",\"" << cs_app_name << "\",\"" << cs_app_ver << "\",\"" << process_id << "\"]";
+        
+        std::string login_str = login_msg.str();
+        enable_logging = true;
+        char login_log[256];
+        snprintf(login_log, sizeof(login_log), "Sending login: %s", login_str.c_str());
+        log_fast(login_log);
+        send_ws_frame_func(login_str);
+        usleep(200000); // Wait 200ms after login (like Python code)
+        
+        // CS protocol: Send individual subscription for each instrument
+        enable_logging = true;
+        char sub_log[256];
+        snprintf(sub_log, sizeof(sub_log), "Subscribing to %zu instrument(s)...", instruments.size());
+        log_fast(sub_log);
+        
+        // Add random initial delay (1-3 seconds) to stagger subscriptions across cores
+        srand(time(NULL) ^ getpid() ^ core_id);
+        int random_initial_delay_us = 1000000 + (rand() % 2000001); // 1-3 seconds
+        usleep(random_initial_delay_us);
+        
+        for (size_t i = 0; i < instruments.size(); i++) {
+            std::stringstream sub_msg;
+            sub_msg << "[11," << instruments[i] << "," << sub_options << "]";
+            std::string sub_str = sub_msg.str();
+            send_ws_frame_func(sub_str);
+            usleep(10000); // 10ms delay between subscriptions (matches Python code: 0.01s)
+        }
+        
+        // Wait a bit after all subscriptions to let server process them
+        usleep(500000); // 500ms wait after subscriptions
+        return true;
+    };
     
     // Main loop buffer
     alignas(64) unsigned char buffer[65536];
@@ -1295,80 +1513,116 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
     
     // Helper function to read and process messages (used during subscription and main loop)
     auto read_and_process_messages = [&]() -> bool {
+        // Always try to read, even if buffer has data (process existing data first, then read more)
         int n = recv(sock, buffer + buffer_pos, sizeof(buffer) - buffer_pos, 0);
         if (n > 0) {
             buffer_pos += n;
-            // Process complete frames
-            size_t offset = 0;
-            while (offset < buffer_pos && g_running) {
-                size_t frame_size = 0;
-                if (parse_ws_frame(buffer, buffer_pos, &offset, &frame_size)) {
-                    size_t payload_offset = offset + 2;
-                    uint64_t payload_len = buffer[offset + 1] & 0x7F;
-                    if (payload_len == 126) {
-                        payload_len = (buffer[offset + 2] << 8) | buffer[offset + 3];
-                        payload_offset += 2;
-                    } else if (payload_len == 127) {
-                        payload_len = 0;
-                        for (int j = 0; j < 8; j++) {
-                            payload_len = (payload_len << 8) | buffer[offset + 2 + j];
-                        }
-                        payload_offset += 8;
+        }
+        
+        // Process complete frames from buffer (whether new data arrived or not)
+        // This ensures we process all available frames, not just when new data arrives
+        size_t offset = 0;
+        bool processed_any = false;
+        while (offset < buffer_pos && g_running) {
+            size_t frame_size = 0;
+            if (parse_ws_frame(buffer, buffer_pos, &offset, &frame_size)) {
+                processed_any = true;
+                // parse_ws_frame already validated the frame and returned frame_size
+                // Now extract payload: server frames are NOT masked
+                size_t payload_offset = offset + 2; // Skip FIN+opcode and mask+len byte
+                uint64_t payload_len = buffer[offset + 1] & 0x7F;
+                
+                // Adjust for extended payload length
+                if (payload_len == 126) {
+                    payload_len = (buffer[offset + 2] << 8) | buffer[offset + 3];
+                    payload_offset = offset + 4; // 2 bytes header + 2 bytes extended length
+                } else if (payload_len == 127) {
+                    payload_len = 0;
+                    for (int j = 0; j < 8; j++) {
+                        payload_len = (payload_len << 8) | buffer[offset + 2 + j];
                     }
-                    size_t total_frame_size = payload_offset - offset + payload_len;
-                    if (offset + total_frame_size <= buffer_pos) {
-                        buffer[payload_offset + payload_len] = '\0';
-                        uint8_t opcode = buffer[offset] & 0x0F;
-                        if (opcode == 0x09) { // Ping
-                            send_ws_pong(buffer + payload_offset, payload_len);
-                        } else if (opcode == 0x01 || opcode == 0x02) {
-                            process_tob_message((const char*)buffer + payload_offset, payload_len);
-                        }
-                        offset += total_frame_size;
-                    } else {
-                        break; // Incomplete frame
-                    }
+                    payload_offset = offset + 10; // 2 bytes header + 8 bytes extended length
                 } else {
-                    // Check for ping/close frames
-                    if (frame_size > 0 && offset + 2 <= buffer_pos) {
-                        uint8_t opcode = buffer[offset] & 0x0F;
-                        if (opcode == 0x09) {
-                            size_t ping_payload_offset = offset + 2;
-                            uint64_t ping_payload_len = buffer[offset + 1] & 0x7F;
-                            if (ping_payload_len == 126) {
-                                ping_payload_len = (buffer[offset + 2] << 8) | buffer[offset + 3];
-                                ping_payload_offset += 2;
-                            } else if (ping_payload_len == 127) {
-                                ping_payload_len = 0;
-                                for (int j = 0; j < 8; j++) {
-                                    ping_payload_len = (ping_payload_len << 8) | buffer[offset + 2 + j];
-                                }
-                                ping_payload_offset += 8;
-                            }
-                            if (ping_payload_offset + ping_payload_len <= buffer_pos) {
-                                send_ws_pong(buffer + ping_payload_offset, ping_payload_len);
-                            }
-                        } else if (opcode == 0x08) {
-                            return false; // Close frame
+                    payload_offset = offset + 2; // 2 bytes header, no extended length
+                }
+                
+                // Server frames are NOT masked, so payload starts immediately after header
+                if (offset + frame_size <= buffer_pos) {
+                    // Ensure null termination for string processing
+                    if (payload_offset + payload_len <= buffer_pos) {
+                        buffer[payload_offset + payload_len] = '\0';
+                    }
+                    
+                    uint8_t opcode = buffer[offset] & 0x0F;
+                    if (opcode == 0x09) { // Ping
+                        send_ws_pong(buffer + payload_offset, payload_len);
+                    } else if (opcode == 0x01 || opcode == 0x02) {
+                        // Process all message types - TOB messages (type 6) will increment counter
+                        // Other types (5=READY, 14=subscription confirm) are ignored but don't cause errors
+                        process_tob_message((const char*)buffer + payload_offset, payload_len);
+                    } else {
+                        // Log unexpected opcodes for debugging (only occasionally to avoid spam)
+                        static uint64_t unexpected_opcode_count = 0;
+                        unexpected_opcode_count++;
+                        if (unexpected_opcode_count % 1000 == 0) {
+                            enable_logging = true;
+                            char debug_msg[256];
+                            snprintf(debug_msg, sizeof(debug_msg), "[Host-%d Core-%d] Unexpected opcode: 0x%02X (count: %llu)", 
+                                    g_host_id + 1, g_core_id, opcode, (unsigned long long)unexpected_opcode_count);
+                            log_fast(debug_msg);
+                            enable_logging = false;
                         }
                     }
-                    if (frame_size == 0) break;
-                    offset += frame_size;
+                    offset += frame_size; // Use frame_size from parse_ws_frame
+                } else {
+                    break; // Incomplete frame
                 }
+            } else {
+                // Check for ping/close frames
+                if (frame_size > 0 && offset + 2 <= buffer_pos) {
+                    uint8_t opcode = buffer[offset] & 0x0F;
+                    if (opcode == 0x09) {
+                        size_t ping_payload_offset = offset + 2;
+                        uint64_t ping_payload_len = buffer[offset + 1] & 0x7F;
+                        if (ping_payload_len == 126) {
+                            ping_payload_len = (buffer[offset + 2] << 8) | buffer[offset + 3];
+                            ping_payload_offset += 2;
+                        } else if (ping_payload_len == 127) {
+                            ping_payload_len = 0;
+                            for (int j = 0; j < 8; j++) {
+                                ping_payload_len = (ping_payload_len << 8) | buffer[offset + 2 + j];
+                            }
+                            ping_payload_offset += 8;
+                        }
+                        if (ping_payload_offset + ping_payload_len <= buffer_pos) {
+                            send_ws_pong(buffer + ping_payload_offset, ping_payload_len);
+                        }
+                    } else if (opcode == 0x08) {
+                        return false; // Close frame
+                    }
+                }
+                if (frame_size == 0) break;
+                offset += frame_size;
             }
-            if (offset > 0 && offset < buffer_pos) {
-                memmove(buffer, buffer + offset, buffer_pos - offset);
-                buffer_pos -= offset;
-            } else if (offset >= buffer_pos) {
-                buffer_pos = 0;
-            }
+        }
+        if (offset > 0 && offset < buffer_pos) {
+            memmove(buffer, buffer + offset, buffer_pos - offset);
+            buffer_pos -= offset;
+        } else if (offset >= buffer_pos) {
+            buffer_pos = 0;
+        }
+        
+        // Handle recv() return value
+        if (n > 0) {
+            // Return true if we processed frames OR if we read new data (even if no frames processed yet)
             return true;
         } else if (n < 0) {
             // Handle recoverable errors
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                return true; // No data available, but connection is OK
+                // Return true if we processed any frames, false otherwise
+                return processed_any;
             } else if (errno == EINTR) {
-                return true; // Interrupted system call, retry
+                return processed_any; // Interrupted system call, but may have processed frames
             } else {
                 // Actual error - ALWAYS log it (force enable logging for errors)
                 bool was_logging = enable_logging;
@@ -1388,31 +1642,31 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
         }
     };
     
-    // Subscribe to each instrument individually (like Python code - just send, don't read during subscription)
-    for (size_t i = 0; i < instruments.size(); i++) {
-        std::stringstream sub_msg;
-        sub_msg << "[11," << instruments[i] << "," << sub_options << "]";
-        std::string sub_str = sub_msg.str();
-        send_ws_frame(sub_str);
-        usleep(10000); // 10ms delay between subscriptions (matches Python code: 0.01s)
+    // Perform initial login and subscription
+    if (!login_and_subscribe(sock, send_ws_frame)) {
+        close(sock);
+        return 1;
     }
     
-    // Wait a bit after all subscriptions to let server process them
-    usleep(500000); // 500ms wait after subscriptions (like Python code waits 0.2s after login)
-    
+    enable_logging = true;
     log_fast("=== STREAMING MARKET DATA (HFT OPTIMIZED) ===");
     
     // HFT OPTIMIZATION: Disable logging in hot path for maximum performance
     enable_logging = false;
     
-    // Ensure g_running is true before entering main loop (in case it was set false during subscription)
+    // Ensure g_running is true before entering main loop
     g_running = true;
     
-    // Main loop (buffer already declared above)
+    // Main loop with reconnection support
     int update_count = 0;
     uint64_t last_log_time = get_timestamp_ns();
-    uint64_t current_time = 0; // Declare once for use throughout loop
+    uint64_t current_time = 0;
     const uint64_t LOG_INTERVAL_NS = 5000000000ULL; // 5 seconds
+    
+    // Reconnection state
+    int reconnect_delay_ms = 2000; // Start with 2 seconds
+    const int MAX_RECONNECT_DELAY_MS = 30000; // Max 30 seconds
+    int reconnect_attempts = 0;
     
     // Socket is already set to non-blocking from initialization phase
     
@@ -1425,44 +1679,104 @@ int run_core_client(int core_id, int host_id, const std::string& host, int port,
             if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
                 // Not an error, just no data - continue
             } else {
-                // Real error or connection closed - log it ONCE, then break
+                // Real error or connection closed - attempt reconnection
                 enable_logging = true;
                 if (errno != 0) {
                     char err_msg[256];
-                    snprintf(err_msg, sizeof(err_msg), "[Host-%d Core-%d] Connection error: %s (errno=%d)", 
+                    snprintf(err_msg, sizeof(err_msg), "[Host-%d Core-%d] Connection error: %s (errno=%d). Attempting to reconnect...", 
                             g_host_id + 1, g_core_id, strerror(errno), errno);
                     log_fast(err_msg);
                 } else {
-                    // Connection closed by peer (recv returned 0) - log once and break
                     char close_msg[256];
-                    snprintf(close_msg, sizeof(close_msg), "[Host-%d Core-%d] Connection closed by server", 
+                    snprintf(close_msg, sizeof(close_msg), "[Host-%d Core-%d] Connection closed by server. Attempting to reconnect...", 
                             g_host_id + 1, g_core_id);
                     log_fast(close_msg);
                 }
-                // Break immediately on connection close/error - don't spam logs
-                break;
+                
+                // Close current socket
+                if (sock >= 0) {
+                    close(sock);
+                    sock = -1;
+                }
+                
+                // Wait before reconnecting (exponential backoff)
+                for (int i = 0; i < reconnect_delay_ms && g_running; i += 100) {
+                    usleep(100000); // 100ms increments
+                }
+                
+                if (!g_running) {
+                    break;
+                }
+                
+                // Attempt reconnection
+                reconnect_attempts++;
+                enable_logging = true;
+                char reconnect_msg[256];
+                snprintf(reconnect_msg, sizeof(reconnect_msg), "[Host-%d Core-%d] Reconnection attempt #%d (delay: %dms)...", 
+                        host_id + 1, core_id, reconnect_attempts, reconnect_delay_ms);
+                log_fast(reconnect_msg);
+                
+                int new_sock = -1;
+                if (connect_websocket(new_sock)) {
+                    // Reconnection successful - reset delay and update socket
+                    sock = new_sock;
+                    reconnect_delay_ms = 2000; // Reset to initial delay
+                    reconnect_attempts = 0;
+                    
+                    // Set socket to non-blocking
+                    int flags = fcntl(sock, F_GETFL, 0);
+                    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+                    
+                    // Clear buffer for new connection
+                    buffer_pos = 0;
+                    
+                    // Re-login and re-subscribe
+                    if (login_and_subscribe(sock, send_ws_frame)) {
+                        enable_logging = true;
+                        log_fast("=== STREAMING MARKET DATA (HFT OPTIMIZED) ===");
+                        enable_logging = false;
+                        // Continue main loop
+                    } else {
+                        enable_logging = true;
+                        log_fast("ERROR: Failed to re-login/subscribe after reconnection");
+                        close(sock);
+                        sock = -1;
+                        // Increase delay for next attempt
+                        reconnect_delay_ms = std::min(reconnect_delay_ms * 2, MAX_RECONNECT_DELAY_MS);
+                    }
+                } else {
+                    // Reconnection failed - increase delay for next attempt
+                    reconnect_delay_ms = std::min(reconnect_delay_ms * 2, MAX_RECONNECT_DELAY_MS);
+                    enable_logging = true;
+                    char fail_msg[256];
+                    snprintf(fail_msg, sizeof(fail_msg), "[Host-%d Core-%d] Reconnection failed. Will retry in %dms...", 
+                            host_id + 1, core_id, reconnect_delay_ms);
+                    log_fast(fail_msg);
+                }
+                
+                // Continue loop to retry connection
+                continue;
+            }
+        } else {
+            // Connection is healthy - reset reconnect delay
+            if (reconnect_attempts > 0) {
+                reconnect_delay_ms = 2000;
+                reconnect_attempts = 0;
             }
         }
         
-        // Check if time to log stats (every 5 seconds) - ALWAYS log, even if no data or connection issues
-        // This check MUST happen every loop iteration, regardless of connection state
+        // Check if time to log stats (every 5 seconds)
         current_time = get_timestamp_ns();
         if (current_time - last_log_time >= LOG_INTERVAL_NS) {
             update_count++;
-            // Force enable logging for stats - MUST log every 5 seconds regardless of connection state
             enable_logging = true;
-            // Always log stats, even if symbol_data is empty (will show "No symbols received yet")
             log_core_stats(g_symbol_data, g_instrument_to_symbol, update_count);
-            enable_logging = false; // Disable again after logging
+            enable_logging = false;
             last_log_time = current_time;
         }
         
-        // Small delay to prevent busy-waiting and ensure we check timing regularly
-        if (buffer_pos == 0 && read_success) {
-            usleep(10000); // 10ms delay when no data available (but connection OK)
-        } else {
-            usleep(1000); // 1ms sleep to prevent 100% CPU usage
-        }
+        // Small delay to prevent busy-waiting
+        usleep(1000); // 1ms sleep
     }
     
     enable_logging = true;

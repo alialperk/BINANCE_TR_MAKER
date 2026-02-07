@@ -618,8 +618,23 @@ inline void process_depth(const char* data, size_t len, uint64_t /* recv_time */
     if (g_shm_manager && has_bid && has_ask) {
         int64_t timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
-        g_shm_manager->update_orderbook(msg_symbol, top_ask_price, 0.0,
-                                       top_bid_price, 0.0, timestamp);
+        
+        // Normalize symbol for shared memory lookup: convert "0GTRY" -> "0G_TRY" to match mapping file
+        // The mapping file has symbols like "0G_TRY", "1MBABYDOGE_TRY", etc.
+        std::string shm_symbol = msg_symbol;
+        // Try exact match first
+        bool found = g_shm_manager->update_orderbook(shm_symbol, top_ask_price, 0.0,
+                                                    top_bid_price, 0.0, timestamp);
+        // If exact match fails, try with underscore before "TRY"
+        if (!found && shm_symbol.length() > 3) {
+            std::string try_suffix = shm_symbol.substr(shm_symbol.length() - 3);
+            if (try_suffix == "TRY") {
+                std::string base = shm_symbol.substr(0, shm_symbol.length() - 3);
+                shm_symbol = base + "_TRY";
+                g_shm_manager->update_orderbook(shm_symbol, top_ask_price, 0.0,
+                                               top_bid_price, 0.0, timestamp);
+            }
+        }
     }
     
     // Don't print here - will be printed every 5 seconds in main loop
@@ -683,7 +698,7 @@ int main(int argc, char* argv[]) {
         
         std::vector<pid_t> child_pids;
         
-        // Spawn 10 child processes
+        // Spawn 10 child processes (one per core, cores 0-9 for EXCHANGE clients)
         for (int core_id = 0; core_id < 10; core_id++) {
             int start_idx = core_id * symbols_per_core;
             if (core_id < remainder) {
